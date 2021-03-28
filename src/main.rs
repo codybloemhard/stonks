@@ -8,7 +8,27 @@ fn main() {
     let mut state = State::new();
     let ts = contents.split('\n').into_iter().map(|line| line.to_string().into_trans(&mut state))
         .flatten().collect::<Vec<_>>();
-    println!("{:?}", ts);
+    let bs = balances(&mut state, ts);
+    for (name, amount) in &bs{
+        println!("{}: {}", name, amount);
+    }
+    println!("Your life is worth {} EUR.", sum(&bs));
+}
+
+pub fn sum(balances: &[Balance]) -> i64{
+    balances.iter().filter(|(name, _)| name != "null").fold(0, |sum, (_, amount)| sum + amount)
+}
+
+pub type Balance = (String, i64);
+
+pub fn balances(state: &mut State, ts: Vec<Trans>) -> Vec<Balance>{
+    let mut accounts = vec![0i64; state.ids.next_id];
+    for trans in ts{
+        accounts[trans.src] -= trans.amount as i64;
+        accounts[trans.dst] += trans.amount as i64;
+    }
+    accounts.into_iter().enumerate().map(|(id, amount)| (state.name(id), amount))
+        .collect::<Vec<_>>()
 }
 
 #[derive(Default)]
@@ -42,6 +62,7 @@ impl Ider{
 #[derive(Default)]
 pub struct State{
     ids: Ider,
+    names: HashMap<usize, String>,
     ins: HashSet<usize>,
     tags: Ider,
 }
@@ -50,17 +71,29 @@ impl State{
     pub fn new() -> Self{
         Self{
             ids: Ider::new(),
+            names: HashMap::new(),
             ins: HashSet::new(),
             tags: Ider::new(),
         }
     }
 
     pub fn account_id(&mut self, string: String, set_in: bool) -> usize{
-        let id = self.ids.get_id(string);
+        let id = self.ids.get_id(string.clone());
         if set_in{
             self.ins.insert(id);
         }
+        self.names.insert(id, string);
         id
+    }
+
+    pub fn name(&self, id: usize) -> String{
+        if id == 0 {
+            String::from("null")
+        } else if let Some(name) = self.names.get(&id){
+            name.to_string()
+        } else {
+            String::from("unnamed")
+        }
     }
 
     pub fn tag_id(&mut self, string: String) -> usize{
