@@ -1,0 +1,45 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+<script>
+    window.onload = function () {
+    var chart = new CanvasJS.Chart("chartContainer", {
+        animationEnabled: false,
+            theme: "dark2",
+                title:{
+                text: "Net worth"
+            },
+        axisY: {
+            suffix: "€",
+            stripLines: [{
+                value: 0,
+                label: "Zero"
+            }]
+        },
+        axisX:{
+            valueFormatString: "MMM YYYY" ,
+            labelAngle: -50
+        },
+        data: [{
+            xValueFormatString: "MMM YYYY",
+            type: "line",
+            dataPoints: [
+                {x: new Date(2002, 0), y: -20000},
+                {x: new Date(2002, 1), y: -10000},
+                {x: new Date(2002, 2), y: -5000},
+                {x: new Date(2002, 3), y: 0},
+                {x: new Date(2002, 4), y: 500},
+                {x: new Date(2002, 5), y: 4000},
+                {x: new Date(2002, 6), y: 4000},
+            ]
+        }]
+});
+chart.render();
+}
+</script>
+</head>
+<body style="background:#222">
+<div id="chartContainer" style="height: 370px; width: 100%;"></div>
+<script src="https://canvasjs.com/assets/script/canvasjs.min.js"></script>
+</body>
+</html>
