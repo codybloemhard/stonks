@@ -8,27 +8,57 @@ fn main() {
     let mut state = State::new();
     let ts = contents.split('\n').into_iter().map(|line| line.to_string().into_trans(&mut state))
         .flatten().collect::<Vec<_>>();
-    let bs = balances(&mut state, ts);
+    let (_, bs) = gradient(&state, &ts, None);
+    let bs = into_nameds(bs, &state);
     for (name, amount) in &bs{
         println!("{}: {}", name, amount);
     }
-    println!("Your life is worth {} EUR.", sum(&bs));
+    println!("Your life is worth {} EUR.", bs.sum());
 }
 
-pub fn sum(balances: &[Balance]) -> i64{
-    balances.iter().filter(|(name, _)| name != "null").fold(0, |sum, (_, amount)| sum + amount)
+pub type Balance = (usize, i64);
+pub type NamedBalance = (String, i64);
+
+pub trait Sumable{
+    fn sum(&self) -> i64;
 }
 
-pub type Balance = (String, i64);
+impl Sumable for Vec<Balance>{
+    fn sum(&self) -> i64{
+        self.iter().filter(|(id, _)| id != &0).fold(0, |sum, (_, amount)| sum + amount)
+    }
+}
 
-pub fn balances(state: &mut State, ts: Vec<Trans>) -> Vec<Balance>{
+impl Sumable for Vec<NamedBalance>{
+    fn sum(&self) -> i64{
+        self.iter().filter(|(name, _)| name != "null").fold(0, |sum, (_, amount)| sum + amount)
+    }
+}
+
+pub fn into_nameds(bs: Vec<Balance>, state: &State) -> Vec<NamedBalance>{
+    bs.into_iter().map(|(id, val)| (state.name(id), val)).collect::<Vec<_>>()
+}
+
+pub fn gradient(state: &State, ts: &[Trans], from: Option<usize>) -> (usize, Vec<Balance>){
     let mut accounts = vec![0i64; state.ids.next_id];
-    for trans in ts{
+    let mut date = None;
+    let skip = if let Some(skip) = from { skip } else { 0 };
+    let mut next = 0;
+    for (i, trans) in ts.iter().skip(skip).enumerate(){
+        if let Some((_,m,y)) = date{
+            if trans.date.1 != m || trans.date.2 != y{
+                if from.is_some(){
+                    next = skip + i;
+                }
+                break;
+            }
+        } else if from.is_some(){
+            date = Some(trans.date);
+        }
         accounts[trans.src] -= trans.amount as i64;
         accounts[trans.dst] += trans.amount as i64;
     }
-    accounts.into_iter().enumerate().map(|(id, amount)| (state.name(id), amount))
-        .collect::<Vec<_>>()
+    (next, accounts.into_iter().enumerate().collect::<Vec<_>>())
 }
 
 #[derive(Default)]
