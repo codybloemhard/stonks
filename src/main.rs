@@ -8,8 +8,89 @@ fn main() {
     let mut state = State::new();
     let ts = contents.split('\n').into_iter().map(|line| line.to_string().into_trans(&mut state))
         .flatten().collect::<Vec<_>>();
-    let (_, bs) = gradient(&state, &ts, None);
-    let bs = into_nameds(bs, &state);
+    summary(&state, &ts);
+    graph(&state, &ts);
+}
+
+pub fn graph(state: &State, ts: &[Trans]){
+    let hist = time_hist(state, ts);
+    let mut page = String::new();
+    let head = "
+    <html>
+        <head>
+            <script type=\"text/javascript\" src=\"https://www.gstatic.com/charts/loader.js\"></script>
+            <script type=\"text/javascript\">
+                google.charts.load('current', {'packages':['corechart']});
+                google.charts.setOnLoadCallback(drawChart);
+                function drawChart() {
+                    var data = google.visualization.arrayToDataTable([\n";
+    let tail = "
+                    ]);
+                    var options = {
+                        titleColor: '#FFF',
+                        title: 'Net worth',
+                        backgroundColor: '#444',
+                        lineWidth: 5,
+                        legend: {
+                            position: 'bottom',
+                            textStyle:{ color: '#FFF' }
+                        },
+                        colors:['#F00', '#0F0', '#00F' ],
+                        hAxis:{ textStyle:{ color: '#FFF' } },
+                        vAxis:{ textStyle:{ color: '#FFF' } },
+                    };
+                    var chart = new google.visualization.LineChart(document.getElementById('line_chart'));
+                    chart.draw(data, options);
+                }
+            </script>
+        </head>
+        <body style=\"background: #222;\">
+            <div id=\"line_chart\" style=\"width: 100%; height: 500px; background: #222;\"></div>
+        </body>
+    </html>";
+    page.push_str(head);
+    page.push('[');
+    page.push_str("\'Date\',");
+    (0..state.ids.next_id).into_iter().for_each(|id| page.push_str(&format!("\'{}\',", state.name(id))));
+    page.push_str("],\n");
+    let mut accounts = vec![0i64; state.ids.next_id];
+    for ((mm, yy), bs) in hist.into_iter(){
+        let format_date = |mm, yy| {
+            let m = match mm{
+                1 => "Jan",
+                2 => "Feb",
+                3 => "Mar",
+                4 => "Apr",
+                5 => "May",
+                6 => "Jun",
+                7 => "Jul",
+                8 => "Aug",
+                9 => "Sep",
+                10 => "Oct",
+                11 => "Nov",
+                12 => "Dec",
+                _ => "AAA"
+            };
+            format!("\'{} {}\',", m, yy)
+        };
+        page.push('[');
+        page.push_str(&format_date(mm, yy));
+        bs.into_iter().enumerate().for_each(|(i, (_, v))| accounts[i] += v);
+        accounts.iter().for_each(|v| page.push_str(&format!("\'{}\',", v.to_string())));
+        page.push_str("],\n");
+    }
+    page.push_str(tail);
+    println!("{}", page);
+                        // ['Date', 'Acc0', 'Acc1'],
+                        // ['Jan 2021',  -10000,   300],
+                        // ['Feb 2021',  -12000,   1000],
+                        // ['Mar 2021',  -16000,   2000],
+                        // ['Apr 2021',  -18000,   3000]
+}
+
+pub fn summary(state: &State, ts: &[Trans]){
+    let (_, bs) = gradient(state, ts, None);
+    let bs = into_nameds(bs, state);
     for (name, amount) in &bs{
         println!("{}: {}", name, amount);
     }
@@ -39,12 +120,25 @@ pub fn into_nameds(bs: Vec<Balance>, state: &State) -> Vec<NamedBalance>{
     bs.into_iter().map(|(id, val)| (state.name(id), val)).collect::<Vec<_>>()
 }
 
+pub fn time_hist(state: &State, ts: &[Trans]) -> Vec<((u8, u16), Vec<Balance>)>{
+    let mut hist = Vec::new();
+    let mut from = 0;
+    while from < ts.len() - 1{
+        let mmyy = (ts[from].date.1, ts[from].date.2);
+        let (new_from, bs) = gradient(state, ts, Some(from));
+        hist.push((mmyy, bs));
+        from = new_from;
+    }
+    hist
+}
+
 pub fn gradient(state: &State, ts: &[Trans], from: Option<usize>) -> (usize, Vec<Balance>){
     let mut accounts = vec![0i64; state.ids.next_id];
     let mut date = None;
     let skip = if let Some(skip) = from { skip } else { 0 };
     let mut next = 0;
     for (i, trans) in ts.iter().skip(skip).enumerate(){
+        // println!("-----{}", trans.date.1);
         if let Some((_,m,y)) = date{
             if trans.date.1 != m || trans.date.2 != y{
                 if from.is_some(){
