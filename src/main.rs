@@ -1,5 +1,8 @@
 use std::fs;
+use std::fs::File;
+use std::io::prelude::*;
 use std::collections::{ HashMap, HashSet };
+use std::process::Command;
 
 use term_basics_linux as tbl;
 
@@ -9,10 +12,11 @@ fn main() {
     let ts = contents.split('\n').into_iter().map(|line| line.to_string().into_trans(&mut state))
         .flatten().collect::<Vec<_>>();
     summary(&state, &ts);
-    graph(&state, &ts);
+    graph(&state, &ts, true);
 }
 
-pub fn graph(state: &State, ts: &[Trans]){
+pub fn graph(state: &State, ts: &[Trans], skip_null: bool){
+    let null_skip = if skip_null { 1 } else { 0 };
     let hist = time_hist(state, ts);
     let mut page = String::new();
     let head = "
@@ -51,7 +55,7 @@ pub fn graph(state: &State, ts: &[Trans]){
     page.push_str(head);
     page.push('[');
     page.push_str("\'Date\',");
-    (0..state.ids.next_id).into_iter().for_each(|id| page.push_str(&format!("\'{}\',", state.name(id))));
+    (null_skip..state.ids.next_id).into_iter().for_each(|id| page.push_str(&format!("\'{}\',", state.name(id))));
     page.push_str("],\n");
     let mut accounts = vec![0i64; state.ids.next_id];
     for ((mm, yy), bs) in hist.into_iter(){
@@ -76,16 +80,13 @@ pub fn graph(state: &State, ts: &[Trans]){
         page.push('[');
         page.push_str(&format_date(mm, yy));
         bs.into_iter().enumerate().for_each(|(i, (_, v))| accounts[i] += v);
-        accounts.iter().for_each(|v| page.push_str(&format!("\'{}\',", v.to_string())));
+        accounts.iter().skip(null_skip).for_each(|v| page.push_str(&format!("{},", v.to_string())));
         page.push_str("],\n");
     }
     page.push_str(tail);
-    println!("{}", page);
-                        // ['Date', 'Acc0', 'Acc1'],
-                        // ['Jan 2021',  -10000,   300],
-                        // ['Feb 2021',  -12000,   1000],
-                        // ['Mar 2021',  -16000,   2000],
-                        // ['Apr 2021',  -18000,   3000]
+    let mut file = File::create("graph.html").expect("Could not create file!");
+    file.write_all(page.as_bytes()).expect("Could not write to file!");
+    Command::new("firefox").arg("graph.html").output().expect("Could not open graph in firefox!");
 }
 
 pub fn summary(state: &State, ts: &[Trans]){
@@ -123,10 +124,13 @@ pub fn into_nameds(bs: Vec<Balance>, state: &State) -> Vec<NamedBalance>{
 pub fn time_hist(state: &State, ts: &[Trans]) -> Vec<((u8, u16), Vec<Balance>)>{
     let mut hist = Vec::new();
     let mut from = 0;
-    while from < ts.len() - 1{
+    loop{
         let mmyy = (ts[from].date.1, ts[from].date.2);
         let (new_from, bs) = gradient(state, ts, Some(from));
         hist.push((mmyy, bs));
+        if from == ts.len() - 1 {
+            break;
+        }
         from = new_from;
     }
     hist
@@ -138,7 +142,6 @@ pub fn gradient(state: &State, ts: &[Trans], from: Option<usize>) -> (usize, Vec
     let skip = if let Some(skip) = from { skip } else { 0 };
     let mut next = 0;
     for (i, trans) in ts.iter().skip(skip).enumerate(){
-        // println!("-----{}", trans.date.1);
         if let Some((_,m,y)) = date{
             if trans.date.1 != m || trans.date.2 != y{
                 if from.is_some(){

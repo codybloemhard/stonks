@@ -1,0 +1,40 @@
+
+    <html>
+        <head>
+            <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+            <script type="text/javascript">
+                google.charts.load('current', {'packages':['corechart']});
+                google.charts.setOnLoadCallback(drawChart);
+                function drawChart() {
+                    var data = google.visualization.arrayToDataTable([
+['Date','null','ING Payment','ING Saving','duo',],
+['Feb 2021',13291,586,4200,-18077,],
+['Mar 2021',15491,-1614,4200,-18077,],
+['Apr 2021',15441,-1564,4200,-18077,],
+['May 2021',15391,-1514,4200,-18077,],
+['Jun 2021',15341,-1464,4200,-18077,],
+['Jul 2021',15291,-1414,4200,-18077,],
+
+                    ]);
+                    var options = {
+                        titleColor: '#FFF',
+                        title: 'Net worth',
+                        backgroundColor: '#444',
+                        lineWidth: 5,
+                        legend: {
+                            position: 'bottom',
+                            textStyle:{ color: '#FFF' }
+                        },
+                        colors:['#F00', '#0F0', '#00F' ],
+                        hAxis:{ textStyle:{ color: '#FFF' } },
+                        vAxis:{ textStyle:{ color: '#FFF' } },
+                    };
+                    var chart = new google.visualization.LineChart(document.getElementById('line_chart'));
+                    chart.draw(data, options);
+                }
+            </script>
+        </head>
+        <body style="background: #222;">
+            <div id="line_chart" style="width: 100%; height: 500px; background: #222;"></div>
+        </body>
+    </html>
