@@ -57,7 +57,6 @@ pub fn graph(state: &State, ts: &[Trans], skip_null: bool){
     page.push_str("\'Date\',");
     (null_skip..state.ids.next_id).into_iter().for_each(|id| page.push_str(&format!("\'{}\',", state.name(id))));
     page.push_str("],\n");
-    let mut accounts = vec![0i64; state.ids.next_id];
     for ((mm, yy), bs) in hist.into_iter(){
         let format_date = |mm, yy| {
             let m = match mm{
@@ -79,8 +78,8 @@ pub fn graph(state: &State, ts: &[Trans], skip_null: bool){
         };
         page.push('[');
         page.push_str(&format_date(mm, yy));
-        bs.into_iter().enumerate().for_each(|(i, (_, v))| accounts[i] += v);
-        accounts.iter().skip(null_skip).for_each(|v| page.push_str(&format!("{},", v.to_string())));
+        // bs.into_iter().enumerate().for_each(|(i, (_, v))| accounts[i] += v);
+        bs.iter().skip(null_skip).for_each(|v| page.push_str(&format!("{},", v.1.to_string())));
         page.push_str("],\n");
     }
     page.push_str(tail);
@@ -90,8 +89,9 @@ pub fn graph(state: &State, ts: &[Trans], skip_null: bool){
 }
 
 pub fn summary(state: &State, ts: &[Trans]){
-    let (_, bs) = gradient(state, ts, None);
-    let bs = into_nameds(bs, state);
+    let mut accounts = vec![0i64; state.ids.next_id];
+    update(ts, &mut accounts, None);
+    let bs = into_nameds(accounts.into_iter().enumerate().collect::<Vec<_>>(), state);
     for (name, amount) in &bs{
         println!("{}: {}", name, amount);
     }
@@ -124,10 +124,11 @@ pub fn into_nameds(bs: Vec<Balance>, state: &State) -> Vec<NamedBalance>{
 pub fn time_hist(state: &State, ts: &[Trans]) -> Vec<((u8, u16), Vec<Balance>)>{
     let mut hist = Vec::new();
     let mut from = 0;
+    let mut accounts = vec![0i64; state.ids.next_id];
     loop{
         let mmyy = (ts[from].date.1, ts[from].date.2);
-        let (new_from, bs) = gradient(state, ts, Some(from));
-        hist.push((mmyy, bs));
+        let new_from = update(ts, &mut accounts, Some(from));
+        hist.push((mmyy, accounts.iter().copied().enumerate().collect::<Vec<_>>()));
         if from == ts.len() - 1 {
             break;
         }
@@ -136,8 +137,7 @@ pub fn time_hist(state: &State, ts: &[Trans]) -> Vec<((u8, u16), Vec<Balance>)>{
     hist
 }
 
-pub fn gradient(state: &State, ts: &[Trans], from: Option<usize>) -> (usize, Vec<Balance>){
-    let mut accounts = vec![0i64; state.ids.next_id];
+pub fn update(ts: &[Trans], accounts: &mut Vec<i64>, from: Option<usize>) -> usize{
     let mut date = None;
     let skip = if let Some(skip) = from { skip } else { 0 };
     let mut next = 0;
@@ -152,10 +152,17 @@ pub fn gradient(state: &State, ts: &[Trans], from: Option<usize>) -> (usize, Vec
         } else if from.is_some(){
             date = Some(trans.date);
         }
-        accounts[trans.src] -= trans.amount as i64;
-        accounts[trans.dst] += trans.amount as i64;
+        match trans.ttype{
+            TransType::Mov => {
+                accounts[trans.dst] = trans.amount as i64;
+            },
+            TransType::Add => {
+                accounts[trans.src] -= trans.amount as i64;
+                accounts[trans.dst] += trans.amount as i64;
+            },
+        }
     }
-    (next, accounts.into_iter().enumerate().collect::<Vec<_>>())
+    next
 }
 
 #[derive(Default)]
@@ -229,6 +236,9 @@ impl State{
 }
 
 #[derive(Debug)]
+pub enum TransType{ Mov, Add }
+
+#[derive(Debug)]
 pub struct Trans{
     date: (u8, u8, u16),
     src: usize,
@@ -236,6 +246,7 @@ pub struct Trans{
     amount: usize,
     comment: String,
     tags: Vec<usize>,
+    ttype: TransType,
 }
 
 trait IntoTrans{
@@ -245,23 +256,28 @@ trait IntoTrans{
 impl IntoTrans for String{
     fn into_trans(self, state: &mut State) -> Option<Trans>{
         let splitted = self.split(',').collect::<Vec<_>>();
-        if splitted.len() < 6 { return None; }
-        let triple = splitted[0].split(';').collect::<Vec<_>>();
+        if splitted.len() < 7 { return None; }
+        let ttype = match splitted[0]{
+            "mov" => TransType::Mov,
+            "add" => TransType::Add,
+            _ => return None,
+        };
+        let triple = splitted[1].split(';').collect::<Vec<_>>();
         if triple.len() != 3 { return None; }
         let date: (u8, u8, u16) = (
             tbl::string_to_value(triple[0])?,
             tbl::string_to_value(triple[1])?,
             tbl::string_to_value(triple[2])?,
         );
-        let src = state.account_id(splitted[1].to_string(), false);
-        let dst = state.account_id(splitted[2].to_string(), true);
-        let amount: usize = tbl::string_to_value(splitted[3])?;
-        let comment = splitted[4].to_string();
-        let tags = splitted.into_iter().skip(5).map(|raw_tag| state.tag_id(raw_tag.to_string()))
+        let src = state.account_id(splitted[2].to_string(), false);
+        let dst = state.account_id(splitted[3].to_string(), true);
+        let amount: usize = tbl::string_to_value(splitted[4])?;
+        let comment = splitted[5].to_string();
+        let tags = splitted.into_iter().skip(6).map(|raw_tag| state.tag_id(raw_tag.to_string()))
             .collect::<Vec<_>>();
 
         Some(Trans{
-            date, src, dst, amount, comment, tags
+            date, src, dst, amount, comment, tags, ttype
         })
     }
 }
