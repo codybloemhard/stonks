@@ -7,7 +7,8 @@ use std::process::Command;
 use term_basics_linux as tbl;
 
 fn main() {
-    let contents = fs::read_to_string("sample.csv").expect("Couldn't read sample.");
+    let args: Vec<String> = std::env::args().collect();
+    let contents = fs::read_to_string(&args[1]).expect("Couldn't read sample.");
     let mut state = State::new();
     let ts = contents.split('\n').into_iter().map(|line| line.to_string().into_trans(&mut state))
         .flatten().collect::<Vec<_>>();
@@ -78,7 +79,6 @@ pub fn graph(state: &State, ts: &[Trans], skip_null: bool){
         };
         page.push('[');
         page.push_str(&format_date(mm, yy));
-        // bs.into_iter().enumerate().for_each(|(i, (_, v))| accounts[i] += v);
         bs.iter().skip(null_skip).for_each(|v| page.push_str(&format!("{},", v.1.to_string())));
         page.push_str("],\n");
     }
@@ -90,8 +90,8 @@ pub fn graph(state: &State, ts: &[Trans], skip_null: bool){
 
 pub fn summary(state: &State, ts: &[Trans]){
     let mut accounts = vec![0i64; state.ids.next_id];
-    update(ts, &mut accounts, None);
-    let bs = into_nameds(accounts.into_iter().enumerate().collect::<Vec<_>>(), state);
+    update(ts, &mut accounts, None, None);
+    let bs = into_nameds(accounts.into_balances(), state);
     for (name, amount) in &bs{
         println!("{}: {}", name, amount);
     }
@@ -117,6 +117,16 @@ impl Sumable for Vec<NamedBalance>{
     }
 }
 
+pub trait IntoBalances{
+    fn into_balances(self) -> Vec<Balance>;
+}
+
+impl IntoBalances for Vec<i64>{
+    fn into_balances(self) -> Vec<Balance>{
+        self.into_iter().enumerate().collect::<Vec<_>>()
+    }
+}
+
 pub fn into_nameds(bs: Vec<Balance>, state: &State) -> Vec<NamedBalance>{
     bs.into_iter().map(|(id, val)| (state.name(id), val)).collect::<Vec<_>>()
 }
@@ -124,45 +134,52 @@ pub fn into_nameds(bs: Vec<Balance>, state: &State) -> Vec<NamedBalance>{
 pub fn time_hist(state: &State, ts: &[Trans]) -> Vec<((u8, u16), Vec<Balance>)>{
     let mut hist = Vec::new();
     let mut from = 0;
+    let mut date = None;
     let mut accounts = vec![0i64; state.ids.next_id];
+    let mut i = 0;
     loop{
         let mmyy = (ts[from].date.1, ts[from].date.2);
-        let new_from = update(ts, &mut accounts, Some(from));
-        hist.push((mmyy, accounts.iter().copied().enumerate().collect::<Vec<_>>()));
-        if from == ts.len() - 1 {
+        let (new_from, new_date) = update(ts, &mut accounts, Some(from), date);
+        hist.push((mmyy, accounts.clone().into_balances()));
+        if new_from >= ts.len(){
             break;
         }
         from = new_from;
+        date = new_date;
+        i += 1;
+        if i > 10 { break; }
     }
     hist
 }
 
-pub fn update(ts: &[Trans], accounts: &mut Vec<i64>, from: Option<usize>) -> usize{
-    let mut date = None;
+pub fn update(ts: &[Trans], accounts: &mut Vec<i64>, from: Option<usize>, mut date: Option<(u8, u16)>) -> (usize, Option<(u8, u16)>){
     let skip = if let Some(skip) = from { skip } else { 0 };
-    let mut next = 0;
+    let all = from.is_none();
     for (i, trans) in ts.iter().skip(skip).enumerate(){
-        if let Some((_,m,y)) = date{
-            if trans.date.1 != m || trans.date.2 != y{
-                if from.is_some(){
-                    next = skip + i;
-                }
-                break;
+        if let Some((m,y)) = date{
+            if !all && (trans.date.1 != m || trans.date.2 != y){
+                let next = skip + i;
+                date = Some((trans.date.1, trans.date.2));
+                return (next, date);
             }
-        } else if from.is_some(){
-            date = Some(trans.date);
+        } else {
+            date = Some((trans.date.1, trans.date.2));
         }
-        match trans.ttype{
-            TransType::Mov => {
-                accounts[trans.dst] = trans.amount as i64;
+        match trans.ext{
+            TransExt::Set { amount } => {
+                accounts[trans.dst] = amount as i64;
             },
-            TransType::Add => {
-                accounts[trans.src] -= trans.amount as i64;
-                accounts[trans.dst] += trans.amount as i64;
+            TransExt::Mov { src, amount } => {
+                accounts[src] -= amount as i64;
+                accounts[trans.dst] += amount as i64;
             },
+            TransExt::Tra { src, sub, add } => {
+                accounts[src] -= sub as i64;
+                accounts[trans.dst] += add as i64;
+            }
         }
     }
-    next
+    (usize::MAX, date)
 }
 
 #[derive(Default)]
@@ -236,17 +253,28 @@ impl State{
 }
 
 #[derive(Debug)]
-pub enum TransType{ Mov, Add }
+pub enum TransExt{
+    Mov{
+        src: usize,
+        amount: usize,
+    },
+    Set{
+        amount: usize,
+    },
+    Tra{
+        src: usize,
+        sub: usize,
+        add: usize,
+    }
+}
 
 #[derive(Debug)]
 pub struct Trans{
     date: (u8, u8, u16),
-    src: usize,
     dst: usize,
-    amount: usize,
     comment: String,
     tags: Vec<usize>,
-    ttype: TransType,
+    ext: TransExt,
 }
 
 trait IntoTrans{
@@ -256,12 +284,7 @@ trait IntoTrans{
 impl IntoTrans for String{
     fn into_trans(self, state: &mut State) -> Option<Trans>{
         let splitted = self.split(',').collect::<Vec<_>>();
-        if splitted.len() < 7 { return None; }
-        let ttype = match splitted[0]{
-            "mov" => TransType::Mov,
-            "add" => TransType::Add,
-            _ => return None,
-        };
+        if splitted.len() < 3 { return None; }
         let triple = splitted[1].split(';').collect::<Vec<_>>();
         if triple.len() != 3 { return None; }
         let date: (u8, u8, u16) = (
@@ -269,15 +292,38 @@ impl IntoTrans for String{
             tbl::string_to_value(triple[1])?,
             tbl::string_to_value(triple[2])?,
         );
-        let src = state.account_id(splitted[2].to_string(), false);
-        let dst = state.account_id(splitted[3].to_string(), true);
-        let amount: usize = tbl::string_to_value(splitted[4])?;
-        let comment = splitted[5].to_string();
-        let tags = splitted.into_iter().skip(6).map(|raw_tag| state.tag_id(raw_tag.to_string()))
+        let indices;
+        let ext = match splitted[0]{
+            "mov" => {
+                indices = (3, 5, 6);
+                TransExt::Mov{
+                    src: state.account_id(splitted[2].to_string(), false),
+                    amount: tbl::string_to_value(splitted[4])?,
+                }
+            },
+            "set" => {
+                indices = (2, 4, 5);
+                TransExt::Set{
+                    amount: tbl::string_to_value(splitted[3])?,
+                }
+            },
+            "tra" => {
+                indices = (3, 6, 7);
+                TransExt::Tra{
+                    src: state.account_id(splitted[2].to_string(), false),
+                    sub: tbl::string_to_value(splitted[4])?,
+                    add: tbl::string_to_value(splitted[5])?,
+                }
+            }
+            _ => return None,
+        };
+        let dst = state.account_id(splitted[indices.0].to_string(), true);
+        let comment = splitted[indices.1].to_string();
+        let tags = splitted.into_iter().skip(indices.2).map(|raw_tag| state.tag_id(raw_tag.to_string()))
             .collect::<Vec<_>>();
 
         Some(Trans{
-            date, src, dst, amount, comment, tags, ttype
+            date, dst, comment, tags, ext
         })
     }
 }
