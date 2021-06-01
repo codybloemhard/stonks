@@ -1,3 +1,4 @@
+# this is a comment
 mov,1;1;2000,null,A,100,init,init
 mov,1;1;2000,null,B,100,init,init
 set,1;2;2000,A,200,update,investing

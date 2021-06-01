@@ -13,13 +13,16 @@ fn main() {
     let ts = contents.split('\n').into_iter().map(|line| line.to_string().into_trans(&mut state))
         .flatten().collect::<Vec<_>>();
     summary(&state, &ts);
-    graph(&state, &ts, true);
+
+    let include = vec!["ING Payment", "ING Saving", "Binance", "Youhodler"];
+    graph(&state, &ts, &include);
 }
 
-pub fn graph(state: &State, ts: &[Trans], skip_null: bool){
-    let null_skip = if skip_null { 1 } else { 0 };
+pub fn graph(state: &State, ts: &[Trans], include: &[&str]){
     let hist = time_hist(state, ts);
     let mut page = String::new();
+    // Nord theme used
+    // https://www.nordtheme.com/docs/colors-and-paletteshttps://www.nordtheme.com/docs/colors-and-palettes
     let head = "
     <html>
         <head>
@@ -32,17 +35,17 @@ pub fn graph(state: &State, ts: &[Trans], skip_null: bool){
     let tail = "
                     ]);
                     var options = {
-                        titleColor: '#FFF',
+                        titleColor: '#ECEFF4',
                         title: 'Net worth',
-                        backgroundColor: '#444',
+                        backgroundColor: '#2E3440',
                         lineWidth: 5,
                         legend: {
                             position: 'bottom',
-                            textStyle:{ color: '#FFF' }
+                            textStyle:{ color: '#ECEFF4' }
                         },
-                        colors:['#F00', '#0F0', '#00F' ],
-                        hAxis:{ textStyle:{ color: '#FFF' } },
-                        vAxis:{ textStyle:{ color: '#FFF' } },
+                        colors:['#BF616A', '#D08770', '#EBCB8B', '#A3BE8C', '#B48EAD' ],
+                        hAxis:{ textStyle:{ color: '#ECEFF4' } },
+                        vAxis:{ textStyle:{ color: '#ECEFF4' } },
                     };
                     var chart = new google.visualization.LineChart(document.getElementById('line_chart'));
                     chart.draw(data, options);
@@ -56,7 +59,14 @@ pub fn graph(state: &State, ts: &[Trans], skip_null: bool){
     page.push_str(head);
     page.push('[');
     page.push_str("\'Date\',");
-    (null_skip..state.ids.next_id).into_iter().for_each(|id| page.push_str(&format!("\'{}\',", state.name(id))));
+    let mut indices = Vec::new();
+    (0..state.ids.next_id).into_iter().for_each(|id| {
+        let name = state.name(id);
+        if include.contains(&&name[..]){
+            page.push_str(&format!("\'{}\',", name));
+            indices.push(id);
+        }
+    });
     page.push_str("],\n");
     for ((mm, yy), bs) in hist.into_iter(){
         let format_date = |mm, yy| {
@@ -79,7 +89,9 @@ pub fn graph(state: &State, ts: &[Trans], skip_null: bool){
         };
         page.push('[');
         page.push_str(&format_date(mm, yy));
-        bs.iter().skip(null_skip).for_each(|v| page.push_str(&format!("{},", v.1.to_string())));
+        for ind in &indices{
+            page.push_str(&format!("{},", bs[*ind].1.to_string()));
+        }
         page.push_str("],\n");
     }
     page.push_str(tail);
@@ -89,7 +101,7 @@ pub fn graph(state: &State, ts: &[Trans], skip_null: bool){
 }
 
 pub fn summary(state: &State, ts: &[Trans]){
-    let mut accounts = vec![0i64; state.ids.next_id];
+    let mut accounts = vec![0f32; state.ids.next_id];
     update(ts, &mut accounts, None, None);
     let bs = into_nameds(accounts.into_balances(), state);
     for (name, amount) in &bs{
@@ -98,22 +110,22 @@ pub fn summary(state: &State, ts: &[Trans]){
     println!("Your life is worth {} EUR.", bs.sum());
 }
 
-pub type Balance = (usize, i64);
-pub type NamedBalance = (String, i64);
+pub type Balance = (usize, f32);
+pub type NamedBalance = (String, f32);
 
 pub trait Sumable{
-    fn sum(&self) -> i64;
+    fn sum(&self) -> f32;
 }
 
 impl Sumable for Vec<Balance>{
-    fn sum(&self) -> i64{
-        self.iter().filter(|(id, _)| id != &0).fold(0, |sum, (_, amount)| sum + amount)
+    fn sum(&self) -> f32{
+        self.iter().filter(|(id, _)| id != &0).fold(0.0, |sum, (_, amount)| sum + amount)
     }
 }
 
 impl Sumable for Vec<NamedBalance>{
-    fn sum(&self) -> i64{
-        self.iter().filter(|(name, _)| name != "null").fold(0, |sum, (_, amount)| sum + amount)
+    fn sum(&self) -> f32{
+        self.iter().filter(|(name, _)| name != "null").fold(0.0, |sum, (_, amount)| sum + amount)
     }
 }
 
@@ -121,7 +133,7 @@ pub trait IntoBalances{
     fn into_balances(self) -> Vec<Balance>;
 }
 
-impl IntoBalances for Vec<i64>{
+impl IntoBalances for Vec<f32>{
     fn into_balances(self) -> Vec<Balance>{
         self.into_iter().enumerate().collect::<Vec<_>>()
     }
@@ -135,7 +147,7 @@ pub fn time_hist(state: &State, ts: &[Trans]) -> Vec<((u8, u16), Vec<Balance>)>{
     let mut hist = Vec::new();
     let mut from = 0;
     let mut date = None;
-    let mut accounts = vec![0i64; state.ids.next_id];
+    let mut accounts = vec![0f32; state.ids.next_id];
     let mut i = 0;
     loop{
         let mmyy = (ts[from].date.1, ts[from].date.2);
@@ -152,7 +164,7 @@ pub fn time_hist(state: &State, ts: &[Trans]) -> Vec<((u8, u16), Vec<Balance>)>{
     hist
 }
 
-pub fn update(ts: &[Trans], accounts: &mut Vec<i64>, from: Option<usize>, mut date: Option<(u8, u16)>) -> (usize, Option<(u8, u16)>){
+pub fn update(ts: &[Trans], accounts: &mut Vec<f32>, from: Option<usize>, mut date: Option<(u8, u16)>) -> (usize, Option<(u8, u16)>){
     let skip = if let Some(skip) = from { skip } else { 0 };
     let all = from.is_none();
     for (i, trans) in ts.iter().skip(skip).enumerate(){
@@ -167,15 +179,15 @@ pub fn update(ts: &[Trans], accounts: &mut Vec<i64>, from: Option<usize>, mut da
         }
         match trans.ext{
             TransExt::Set { amount } => {
-                accounts[trans.dst] = amount as i64;
+                accounts[trans.dst] = amount;
             },
             TransExt::Mov { src, amount } => {
-                accounts[src] -= amount as i64;
-                accounts[trans.dst] += amount as i64;
+                accounts[src] -= amount;
+                accounts[trans.dst] += amount;
             },
             TransExt::Tra { src, sub, add } => {
-                accounts[src] -= sub as i64;
-                accounts[trans.dst] += add as i64;
+                accounts[src] -= sub;
+                accounts[trans.dst] += add;
             }
         }
     }
@@ -256,15 +268,15 @@ impl State{
 pub enum TransExt{
     Mov{
         src: usize,
-        amount: usize,
+        amount: f32,
     },
     Set{
-        amount: usize,
+        amount: f32,
     },
     Tra{
         src: usize,
-        sub: usize,
-        add: usize,
+        sub: f32,
+        add: f32,
     }
 }
 
@@ -283,6 +295,8 @@ trait IntoTrans{
 
 impl IntoTrans for String{
     fn into_trans(self, state: &mut State) -> Option<Trans>{
+        if self.is_empty() { return None; }
+        if self.starts_with('#') { return None; }
         let splitted = self.split(',').collect::<Vec<_>>();
         if splitted.len() < 3 { return None; }
         let triple = splitted[1].split(';').collect::<Vec<_>>();

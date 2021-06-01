@@ -7,24 +7,24 @@
                 google.charts.setOnLoadCallback(drawChart);
                 function drawChart() {
                     var data = google.visualization.arrayToDataTable([
-['Date','A','B','C',],
-['Jan 2000',100,100,0,],
-['Feb 2000',200,100,0,],
-['Mar 2000',150,100,45,],
+['Date','ING Payment','ING Saving','Binance','Youhodler',],
+['Apr 2021',556.17,4200.47,0,0,],
+['May 2021',592.28,3200.4702,859.96,77.3852,],
+['Jun 2021',592.28,3200.4702,796,77.21,],
 
                     ]);
                     var options = {
-                        titleColor: '#FFF',
+                        titleColor: '#ECEFF4',
                         title: 'Net worth',
-                        backgroundColor: '#444',
+                        backgroundColor: '#2E3440',
                         lineWidth: 5,
                         legend: {
                             position: 'bottom',
-                            textStyle:{ color: '#FFF' }
+                            textStyle:{ color: '#ECEFF4' }
                         },
-                        colors:['#F00', '#0F0', '#00F' ],
-                        hAxis:{ textStyle:{ color: '#FFF' } },
-                        vAxis:{ textStyle:{ color: '#FFF' } },
+                        colors:['#BF616A', '#D08770', '#EBCB8B', '#A3BE8C', '#B48EAD' ],
+                        hAxis:{ textStyle:{ color: '#ECEFF4' } },
+                        vAxis:{ textStyle:{ color: '#ECEFF4' } },
                     };
                     var chart = new google.visualization.LineChart(document.getElementById('line_chart'));
                     chart.draw(data, options);
