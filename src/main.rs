@@ -14,7 +14,7 @@ fn main() {
         .flatten().collect::<Vec<_>>();
     summary(&state, &ts);
 
-    let include = vec!["ING Payment", "ING Saving", "Binance", "Youhodler"];
+    let include = vec!["Payment", "Saving", "Binance", "Youhodler", "Blockfi", "A", "B", "C"];
     graph(&state, &ts, &include);
 }
 
@@ -24,38 +24,38 @@ pub fn graph(state: &State, ts: &[Trans], include: &[&str]){
     // Nord theme used
     // https://www.nordtheme.com/docs/colors-and-paletteshttps://www.nordtheme.com/docs/colors-and-palettes
     let head = "
-    <html>
-        <head>
-            <script type=\"text/javascript\" src=\"https://www.gstatic.com/charts/loader.js\"></script>
-            <script type=\"text/javascript\">
-                google.charts.load('current', {'packages':['corechart']});
-                google.charts.setOnLoadCallback(drawChart);
-                function drawChart() {
-                    var data = google.visualization.arrayToDataTable([\n";
+<html>
+    <head>
+        <script type=\"text/javascript\" src=\"https://www.gstatic.com/charts/loader.js\"></script>
+        <script type=\"text/javascript\">
+            google.charts.load('current', {'packages':['corechart']});
+            google.charts.setOnLoadCallback(drawChart);
+            function drawChart() {
+                var data = google.visualization.arrayToDataTable([\n";
     let tail = "
-                    ]);
-                    var options = {
-                        titleColor: '#ECEFF4',
-                        title: 'Net worth',
-                        backgroundColor: '#2E3440',
-                        lineWidth: 5,
-                        legend: {
-                            position: 'bottom',
-                            textStyle:{ color: '#ECEFF4' }
-                        },
-                        colors:['#BF616A', '#D08770', '#EBCB8B', '#A3BE8C', '#B48EAD' ],
-                        hAxis:{ textStyle:{ color: '#ECEFF4' } },
-                        vAxis:{ textStyle:{ color: '#ECEFF4' } },
-                    };
-                    var chart = new google.visualization.LineChart(document.getElementById('line_chart'));
-                    chart.draw(data, options);
-                }
-            </script>
-        </head>
-        <body style=\"background: #222;\">
-            <div id=\"line_chart\" style=\"width: 100%; height: 500px; background: #222;\"></div>
-        </body>
-    </html>";
+                ]);
+                var options = {
+                    titleColor: '#ECEFF4',
+                    title: 'Net worth',
+                    backgroundColor: '#2E3440',
+                    lineWidth: 5,
+                    legend: {
+                        position: 'bottom',
+                        textStyle:{ color: '#ECEFF4' }
+                    },
+                    colors:['#BF616A', '#D08770', '#EBCB8B', '#A3BE8C', '#B48EAD'],
+                    hAxis:{ textStyle:{ color: '#ECEFF4' } },
+                    vAxis:{ textStyle:{ color: '#ECEFF4' } },
+                };
+                var chart = new google.visualization.LineChart(document.getElementById('line_chart'));
+                chart.draw(data, options);
+            }
+        </script>
+    </head>
+    <body style=\"background: #2E3440;\">
+        <div id=\"line_chart\" style=\"width: 100%; height: 100%; background: #2E3440;\"></div>
+    </body>
+</html>";
     page.push_str(head);
     page.push('[');
     page.push_str("\'Date\',");

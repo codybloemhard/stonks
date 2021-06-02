@@ -1,37 +1,37 @@
 
-    <html>
-        <head>
-            <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
-            <script type="text/javascript">
-                google.charts.load('current', {'packages':['corechart']});
-                google.charts.setOnLoadCallback(drawChart);
-                function drawChart() {
-                    var data = google.visualization.arrayToDataTable([
-['Date','ING Payment','ING Saving','Binance','Youhodler',],
-['Apr 2021',556.17,4200.47,0,0,],
-['May 2021',592.28,3200.4702,859.96,77.3852,],
-['Jun 2021',592.28,3200.4702,796,77.21,],
+<html>
+    <head>
+        <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+        <script type="text/javascript">
+            google.charts.load('current', {'packages':['corechart']});
+            google.charts.setOnLoadCallback(drawChart);
+            function drawChart() {
+                var data = google.visualization.arrayToDataTable([
+['Date','A','B','C',],
+['Jan 2000',100,100,0,],
+['Feb 2000',200,100,0,],
+['Mar 2000',150,100,45,],
 
-                    ]);
-                    var options = {
-                        titleColor: '#ECEFF4',
-                        title: 'Net worth',
-                        backgroundColor: '#2E3440',
-                        lineWidth: 5,
-                        legend: {
-                            position: 'bottom',
-                            textStyle:{ color: '#ECEFF4' }
-                        },
-                        colors:['#BF616A', '#D08770', '#EBCB8B', '#A3BE8C', '#B48EAD' ],
-                        hAxis:{ textStyle:{ color: '#ECEFF4' } },
-                        vAxis:{ textStyle:{ color: '#ECEFF4' } },
-                    };
-                    var chart = new google.visualization.LineChart(document.getElementById('line_chart'));
-                    chart.draw(data, options);
-                }
-            </script>
-        </head>
-        <body style="background: #222;">
-            <div id="line_chart" style="width: 100%; height: 500px; background: #222;"></div>
-        </body>
-    </html>
+                ]);
+                var options = {
+                    titleColor: '#ECEFF4',
+                    title: 'Net worth',
+                    backgroundColor: '#2E3440',
+                    lineWidth: 5,
+                    legend: {
+                        position: 'bottom',
+                        textStyle:{ color: '#ECEFF4' }
+                    },
+                    colors:['#BF616A', '#D08770', '#EBCB8B', '#A3BE8C', '#B48EAD'],
+                    hAxis:{ textStyle:{ color: '#ECEFF4' } },
+                    vAxis:{ textStyle:{ color: '#ECEFF4' } },
+                };
+                var chart = new google.visualization.LineChart(document.getElementById('line_chart'));
+                chart.draw(data, options);
+            }
+        </script>
+    </head>
+    <body style="background: #2E3440;">
+        <div id="line_chart" style="width: 100%; height: 100%; background: #2E3440;"></div>
+    </body>
+</html>
