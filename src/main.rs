@@ -1,7 +1,7 @@
 use std::fs;
 use std::fs::File;
 use std::io::prelude::*;
-use std::collections::{ HashMap, HashSet };
+use std::collections::{ HashMap };
 use std::process::Command;
 
 use term_basics_linux as tbl;
@@ -14,7 +14,8 @@ fn main() {
         .flatten().collect::<Vec<_>>();
     summary(&state, &ts);
 
-    let include = vec!["Payment", "Saving", "Binance", "Youhodler", "Blockfi", "A", "B", "C"];
+    let include = vec!["Payment", "Saving", "Binance", "Youhodler", "Blockfi", "A", "B", "C",
+        "_tra_lost", "_tra_gained"];
     graph(&state, &ts, &include);
 }
 
@@ -184,10 +185,18 @@ pub fn update(ts: &[Trans], accounts: &mut Vec<f32>, from: Option<usize>, mut da
             TransExt::Mov { src, amount } => {
                 accounts[src] -= amount;
                 accounts[trans.dst] += amount;
+                if src != 0 && trans.dst != 0 {
+                    accounts[1] += amount;
+                }
             },
             TransExt::Tra { src, sub, add } => {
                 accounts[src] -= sub;
                 accounts[trans.dst] += add;
+                let diff = add - sub;
+                if diff >= 0.0 { accounts[3] += diff; }
+                else if diff < 0.0 { accounts[2] -= diff; }
+                accounts[4] += diff;
+                accounts[1] += sub.max(add);
             }
         }
     }
@@ -203,15 +212,12 @@ pub struct Ider{
 impl Ider{
     pub fn new() -> Self{
         Self{
-            next_id: 1,
+            next_id: 0,
             ids: HashMap::new(),
         }
     }
 
     pub fn get_id(&mut self, string: String) -> usize{
-        if &string == "null"{
-            return 0;
-        }
         if let Some(id) = self.ids.get(&string){
             *id
         } else {
@@ -226,33 +232,36 @@ impl Ider{
 pub struct State{
     ids: Ider,
     names: HashMap<usize, String>,
-    ins: HashSet<usize>,
     tags: Ider,
 }
 
 impl State{
     pub fn new() -> Self{
-        Self{
+        let temp = Self{
             ids: Ider::new(),
             names: HashMap::new(),
-            ins: HashSet::new(),
             tags: Ider::new(),
-        }
+        };
+        temp.set_defaults()
     }
 
-    pub fn account_id(&mut self, string: String, set_in: bool) -> usize{
+    fn set_defaults(mut self) -> Self{
+        self.account_id("null".to_owned());
+        self.account_id("_flow".to_owned());
+        self.account_id("_tra_lost".to_owned());
+        self.account_id("_tra_gained".to_owned());
+        self.account_id("_tra_net".to_owned());
+        self
+    }
+
+    pub fn account_id(&mut self, string: String) -> usize{
         let id = self.ids.get_id(string.clone());
-        if set_in{
-            self.ins.insert(id);
-        }
         self.names.insert(id, string);
         id
     }
 
     pub fn name(&self, id: usize) -> String{
-        if id == 0 {
-            String::from("null")
-        } else if let Some(name) = self.names.get(&id){
+        if let Some(name) = self.names.get(&id){
             name.to_string()
         } else {
             String::from("unnamed")
@@ -311,7 +320,7 @@ impl IntoTrans for String{
             "mov" => {
                 indices = (3, 5, 6);
                 TransExt::Mov{
-                    src: state.account_id(splitted[2].to_string(), false),
+                    src: state.account_id(splitted[2].to_string()),
                     amount: tbl::string_to_value(splitted[4])?,
                 }
             },
@@ -324,14 +333,14 @@ impl IntoTrans for String{
             "tra" => {
                 indices = (3, 6, 7);
                 TransExt::Tra{
-                    src: state.account_id(splitted[2].to_string(), false),
+                    src: state.account_id(splitted[2].to_string()),
                     sub: tbl::string_to_value(splitted[4])?,
                     add: tbl::string_to_value(splitted[5])?,
                 }
             }
             _ => return None,
         };
-        let dst = state.account_id(splitted[indices.0].to_string(), true);
+        let dst = state.account_id(splitted[indices.0].to_string());
         let comment = splitted[indices.1].to_string();
         let tags = splitted.into_iter().skip(indices.2).map(|raw_tag| state.tag_id(raw_tag.to_string()))
             .collect::<Vec<_>>();
