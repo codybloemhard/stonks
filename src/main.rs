@@ -6,6 +6,18 @@ use std::process::Command;
 
 use term_basics_linux as tbl;
 
+const NULL: usize = 0;
+const FLOW: usize = 1;
+const NET: usize = 2;
+const NET_LOST: usize = 3;
+const NET_GAINED: usize = 4;
+const TRA: usize = 5;
+const TRA_LOST: usize = 6;
+const TRA_GAINED: usize = 7;
+const YIELD: usize = 8;
+const YIELD_LOST: usize = 9;
+const YIELD_GAINED: usize = 10;
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let contents = fs::read_to_string(&args[1]).expect("Couldn't read sample.");
@@ -15,7 +27,7 @@ fn main() {
     summary(&state, &ts);
 
     let include = vec!["Payment", "Saving", "Binance", "Youhodler", "Blockfi", "A", "B", "C",
-        "_tra_lost", "_tra_gained"];
+        "_yield"];
     graph(&state, &ts, &include);
 }
 
@@ -108,27 +120,10 @@ pub fn summary(state: &State, ts: &[Trans]){
     for (name, amount) in &bs{
         println!("{}: {}", name, amount);
     }
-    println!("Your life is worth {} EUR.", bs.sum());
 }
 
 pub type Balance = (usize, f32);
 pub type NamedBalance = (String, f32);
-
-pub trait Sumable{
-    fn sum(&self) -> f32;
-}
-
-impl Sumable for Vec<Balance>{
-    fn sum(&self) -> f32{
-        self.iter().filter(|(id, _)| id != &0).fold(0.0, |sum, (_, amount)| sum + amount)
-    }
-}
-
-impl Sumable for Vec<NamedBalance>{
-    fn sum(&self) -> f32{
-        self.iter().filter(|(name, _)| name != "null").fold(0.0, |sum, (_, amount)| sum + amount)
-    }
-}
 
 pub trait IntoBalances{
     fn into_balances(self) -> Vec<Balance>;
@@ -180,23 +175,49 @@ pub fn update(ts: &[Trans], accounts: &mut Vec<f32>, from: Option<usize>, mut da
         }
         match trans.ext{
             TransExt::Set { amount } => {
+                if trans.dst != NULL{
+                    let diff = amount - accounts[trans.dst];
+                    accounts[NET] += diff;
+                    accounts[NET_LOST] += amount.min(0.0);
+                    accounts[NET_GAINED] += amount.max(0.0);
+                    accounts[YIELD] += diff;
+                    accounts[YIELD_LOST] += diff.min(0.0);
+                    accounts[YIELD_GAINED] += diff.max(0.0);
+                }
                 accounts[trans.dst] = amount;
             },
             TransExt::Mov { src, amount } => {
                 accounts[src] -= amount;
                 accounts[trans.dst] += amount;
-                if src != 0 && trans.dst != 0 {
-                    accounts[1] += amount;
+                if src != NULL && trans.dst != NULL {
+                    accounts[FLOW] += amount;
+                } else if src != NULL && trans.dst == NULL{
+                    accounts[NET] -= amount;
+                    accounts[NET_LOST] += amount;
+                } else if src == NULL && trans.dst != NULL{
+                    accounts[NET] += amount;
+                    accounts[NET_GAINED] += amount;
                 }
             },
             TransExt::Tra { src, sub, add } => {
                 accounts[src] -= sub;
                 accounts[trans.dst] += add;
                 let diff = add - sub;
-                if diff >= 0.0 { accounts[3] += diff; }
-                else if diff < 0.0 { accounts[2] -= diff; }
-                accounts[4] += diff;
-                accounts[1] += sub.max(add);
+                if diff >= 0.0 { accounts[TRA_GAINED] += diff; }
+                else if diff < 0.0 { accounts[TRA_LOST] -= diff; }
+                accounts[TRA] += diff;
+                if src != NULL && trans.dst != NULL{
+                    accounts[FLOW] += sub.max(add);
+                    accounts[NET] += diff;
+                    accounts[NET_LOST] += diff.min(0.0);
+                    accounts[NET_GAINED] += diff.max(0.0);
+                } else if src != NULL && trans.dst == NULL{
+                    accounts[NET] -= sub;
+                    accounts[NET_LOST] += sub;
+                } else if src == NULL && trans.dst != NULL{
+                    accounts[NET] += add;
+                    accounts[NET_GAINED] += add;
+                }
             }
         }
     }
@@ -248,9 +269,15 @@ impl State{
     fn set_defaults(mut self) -> Self{
         self.account_id("null".to_owned());
         self.account_id("_flow".to_owned());
+        self.account_id("_net".to_owned());
+        self.account_id("_net_lost".to_owned());
+        self.account_id("_net_gained".to_owned());
+        self.account_id("_tra".to_owned());
         self.account_id("_tra_lost".to_owned());
         self.account_id("_tra_gained".to_owned());
-        self.account_id("_tra_net".to_owned());
+        self.account_id("_yield".to_owned());
+        self.account_id("_yield_lost".to_owned());
+        self.account_id("_yield_gained".to_owned());
         self
     }
 
