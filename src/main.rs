@@ -17,18 +17,25 @@ const TRA_GAINED: usize = 7;
 const YIELD: usize = 8;
 const YIELD_LOST: usize = 9;
 const YIELD_GAINED: usize = 10;
+const INTERNAL_FLOW: usize = 11;
 
 fn main() {
-    let args: Vec<String> = std::env::args().collect();
-    let contents = fs::read_to_string(&args[1]).expect("Couldn't read sample.");
+    let args = lapp::parse_args("
+        Tells you how poor you are.
+        -a, --accounts (string...) accounts to graph
+        <file> (string) transactional \"database\" file
+    ");
+    let infile = args.get_string("file");
+    let contents = fs::read_to_string(infile).expect("Couldn't read sample.");
     let mut state = State::new();
     let ts = contents.split('\n').into_iter().map(|line| line.to_string().into_trans(&mut state))
         .flatten().collect::<Vec<_>>();
     summary(&state, &ts);
 
-    let include = vec!["Payment", "Saving", "Binance", "Youhodler", "Blockfi", "A", "B", "C",
-        "_yield"];
-    graph(&state, &ts, &include);
+    let includes = args.get_strings("accounts");
+    if !includes.is_empty(){
+        graph(&state, &ts, &includes.iter().map(|s| s.as_str()).collect::<Vec<_>>());
+    }
 }
 
 pub fn graph(state: &State, ts: &[Trans], include: &[&str]){
@@ -189,8 +196,9 @@ pub fn update(ts: &[Trans], accounts: &mut Vec<f32>, from: Option<usize>, mut da
             TransExt::Mov { src, amount } => {
                 accounts[src] -= amount;
                 accounts[trans.dst] += amount;
+                accounts[FLOW] += amount;
                 if src != NULL && trans.dst != NULL {
-                    accounts[FLOW] += amount;
+                    accounts[INTERNAL_FLOW] += amount;
                 } else if src != NULL && trans.dst == NULL{
                     accounts[NET] -= amount;
                     accounts[NET_LOST] += amount;
@@ -202,12 +210,13 @@ pub fn update(ts: &[Trans], accounts: &mut Vec<f32>, from: Option<usize>, mut da
             TransExt::Tra { src, sub, add } => {
                 accounts[src] -= sub;
                 accounts[trans.dst] += add;
+                accounts[FLOW] += sub.max(add);
                 let diff = add - sub;
                 if diff >= 0.0 { accounts[TRA_GAINED] += diff; }
                 else if diff < 0.0 { accounts[TRA_LOST] -= diff; }
                 accounts[TRA] += diff;
                 if src != NULL && trans.dst != NULL{
-                    accounts[FLOW] += sub.max(add);
+                    accounts[INTERNAL_FLOW] += sub.max(add);
                     accounts[NET] += diff;
                     accounts[NET_LOST] += diff.min(0.0);
                     accounts[NET_GAINED] += diff.max(0.0);
@@ -278,6 +287,7 @@ impl State{
         self.account_id("_yield".to_owned());
         self.account_id("_yield_lost".to_owned());
         self.account_id("_yield_gained".to_owned());
+        self.account_id("_internal_flow".to_owned());
         self
     }
 

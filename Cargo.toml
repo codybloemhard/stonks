@@ -8,3 +8,4 @@ edition = "2018"
 
 [dependencies]
 term-basics-linux = "0.5.6"
+lapp = "0.4.0"
