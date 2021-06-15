@@ -36,7 +36,6 @@ fn main() {
 
     let mut colours = Vec::new();
     let palette_source = args.get_string("palette");
-    println!("{:?}", palette_source.is_empty());
     if !palette_source.is_empty(){
         let contents = fs::read_to_string(palette_source).expect("Couldn't read palette file.");
         let clines = contents.split('\n').collect::<Vec<_>>();
@@ -60,7 +59,6 @@ fn main() {
                     break;
                 }
             }
-            println!("{}", builder);
             colours.push(builder);
         }
     }
@@ -82,6 +80,14 @@ pub fn graph(state: &State, ts: &[Trans], include: &[&str], colours: Vec<String>
     let mut page = String::new();
     // Nord theme used
     // https://www.nordtheme.com/docs/colors-and-paletteshttps://www.nordtheme.com/docs/colors-and-palettes
+    let mut carray = String::new();
+    carray.push_str("[");
+    for c in colours.iter().skip(2){
+        carray.push_str("\'");
+        carray.push_str(c);
+        carray.push_str("\', ");
+    }
+    carray.push_str("]");
     let head = "
 <html>
     <head>
@@ -89,32 +95,33 @@ pub fn graph(state: &State, ts: &[Trans], include: &[&str], colours: Vec<String>
         <script type=\"text/javascript\">
             google.charts.load('current', {'packages':['corechart']});
             google.charts.setOnLoadCallback(drawChart);
-            function drawChart() {{
+            function drawChart() {
                 var data = google.visualization.arrayToDataTable([\n";
     let tail = format!("
                 ]);
                 var options = {{
-                    titleColor: '#ECEFF4',
+                    titleColor: '{}',
                     title: 'Net worth',
-                    backgroundColor: {},
+                    backgroundColor: '{}',
                     lineWidth: 5,
                     legend: {{
                         position: 'bottom',
-                        textStyle:{{ color: '#ECEFF4' }}
+                        textStyle:{{ color: '{}' }}
                     }},
-                    colors:['#BF616A', '#D08770', '#EBCB8B', '#A3BE8C', '#B48EAD'],
-                    hAxis:{{ textStyle:{{ color: '#ECEFF4' }} }},
-                    vAxis:{{ textStyle:{{ color: '#ECEFF4' }} }},
+                    colors:{},
+                    hAxis:{{ textStyle:{{ color: '{}' }} }},
+                    vAxis:{{ textStyle:{{ color: '{}' }} }},
                 }};
                 var chart = new google.visualization.LineChart(document.getElementById('line_chart'));
                 chart.draw(data, options);
             }}
         </script>
     </head>
-    <body style=\"background: #2E3440;\">
-        <div id=\"line_chart\" style=\"width: 100%; height: 100%; background: #2E3440;\"></div>
+    <body style=\"background: {};\">
+        <div id=\"line_chart\" style=\"width: 100%; height: 100%; background: {};\"></div>
     </body>
-</html>", colours[0]);
+</html>", colours[1], colours[0], colours[1], carray, colours[1], colours[1], colours[0], colours[0]);
+//         println!("{}", tail);
     page.push_str(head);
     page.push('[');
     page.push_str("\'Date\',");
