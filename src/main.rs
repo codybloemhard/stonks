@@ -23,6 +23,8 @@ fn main() {
     let args = lapp::parse_args("
         Tells you how poor you are.
         -a, --accounts (string...) accounts to graph
+        -p, --palette (default \'\') file to read colours from
+        -c, --colours (integer...) lines to get colours from (bg, fg, col0, col1, ...)
         <file> (string) transactional \"database\" file
     ");
     let infile = args.get_string("file");
@@ -32,13 +34,50 @@ fn main() {
         .flatten().collect::<Vec<_>>();
     summary(&state, &ts);
 
+    let mut colours = Vec::new();
+    let palette_source = args.get_string("palette");
+    println!("{:?}", palette_source.is_empty());
+    if !palette_source.is_empty(){
+        let contents = fs::read_to_string(palette_source).expect("Couldn't read palette file.");
+        let clines = contents.split('\n').collect::<Vec<_>>();
+        let colour_indices = args.get_integers("colours");
+        for ind in colour_indices{
+            if ind < 0 || ind >= clines.len() as i32{
+                continue;
+            }
+            let mut builder = String::new();
+            let mut state = -1;
+            for c in clines[ind as usize].chars(){
+                if state == -1{
+                    if c == '#'{
+                        state = 0;
+                        builder.push(c);
+                    }
+                } else if state < 7 {
+                    state += 1;
+                    builder.push(c);
+                } else {
+                    break;
+                }
+            }
+            println!("{}", builder);
+            colours.push(builder);
+        }
+    }
+    let preset = vec!["#2E2440", "#ECEFF4", "#BF616A", "#D08770", "#EBCB8B", "#A3BE8C", "#B48EAD"];
+    for i in 0..7{
+        if colours.len() < i{
+            colours.push(preset[i].to_owned());
+        }
+    }
+
     let includes = args.get_strings("accounts");
     if !includes.is_empty(){
-        graph(&state, &ts, &includes.iter().map(|s| s.as_str()).collect::<Vec<_>>());
+        graph(&state, &ts, &includes.iter().map(|s| s.as_str()).collect::<Vec<_>>(), colours);
     }
 }
 
-pub fn graph(state: &State, ts: &[Trans], include: &[&str]){
+pub fn graph(state: &State, ts: &[Trans], include: &[&str], colours: Vec<String>){
     let hist = time_hist(state, ts);
     let mut page = String::new();
     // Nord theme used
@@ -50,32 +89,32 @@ pub fn graph(state: &State, ts: &[Trans], include: &[&str]){
         <script type=\"text/javascript\">
             google.charts.load('current', {'packages':['corechart']});
             google.charts.setOnLoadCallback(drawChart);
-            function drawChart() {
+            function drawChart() {{
                 var data = google.visualization.arrayToDataTable([\n";
-    let tail = "
+    let tail = format!("
                 ]);
-                var options = {
+                var options = {{
                     titleColor: '#ECEFF4',
                     title: 'Net worth',
-                    backgroundColor: '#2E3440',
+                    backgroundColor: {},
                     lineWidth: 5,
-                    legend: {
+                    legend: {{
                         position: 'bottom',
-                        textStyle:{ color: '#ECEFF4' }
-                    },
+                        textStyle:{{ color: '#ECEFF4' }}
+                    }},
                     colors:['#BF616A', '#D08770', '#EBCB8B', '#A3BE8C', '#B48EAD'],
-                    hAxis:{ textStyle:{ color: '#ECEFF4' } },
-                    vAxis:{ textStyle:{ color: '#ECEFF4' } },
-                };
+                    hAxis:{{ textStyle:{{ color: '#ECEFF4' }} }},
+                    vAxis:{{ textStyle:{{ color: '#ECEFF4' }} }},
+                }};
                 var chart = new google.visualization.LineChart(document.getElementById('line_chart'));
                 chart.draw(data, options);
-            }
+            }}
         </script>
     </head>
     <body style=\"background: #2E3440;\">
         <div id=\"line_chart\" style=\"width: 100%; height: 100%; background: #2E3440;\"></div>
     </body>
-</html>";
+</html>", colours[0]);
     page.push_str(head);
     page.push('[');
     page.push_str("\'Date\',");
@@ -114,7 +153,7 @@ pub fn graph(state: &State, ts: &[Trans], include: &[&str]){
         }
         page.push_str("],\n");
     }
-    page.push_str(tail);
+    page.push_str(&tail);
     let mut file = File::create("graph.html").expect("Could not create file!");
     file.write_all(page.as_bytes()).expect("Could not write to file!");
     Command::new("firefox").arg("graph.html").output().expect("Could not open graph in firefox!");
