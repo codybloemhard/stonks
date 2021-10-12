@@ -8,16 +8,16 @@ use term_basics_linux as tbl;
 
 const NULL: usize = 0;
 const FLOW: usize = 1;
-const NET: usize = 2;
-const NET_LOST: usize = 3;
-const NET_GAINED: usize = 4;
-const TRA: usize = 5;
-const TRA_LOST: usize = 6;
-const TRA_GAINED: usize = 7;
-const YIELD: usize = 8;
-const YIELD_LOST: usize = 9;
-const YIELD_GAINED: usize = 10;
-const INTERNAL_FLOW: usize = 11;
+const INTERNAL_FLOW: usize = 2;
+const NET: usize = 3;
+const NET_NEG: usize = 4;
+const NET_POS: usize = 5;
+const TRA: usize = 6;
+const TRA_NEG: usize = 7;
+const TRA_POS: usize = 8;
+const YIELD: usize = 9;
+const YIELD_NEG: usize = 10;
+const YIELD_POS: usize = 11;
 
 fn main() {
     let args = lapp::parse_args("
@@ -231,11 +231,11 @@ pub fn update(ts: &[Trans], accounts: &mut Vec<f32>, from: Option<usize>, mut da
                 if trans.dst != NULL{
                     let diff = amount - accounts[trans.dst];
                     accounts[NET] += diff;
-                    accounts[NET_LOST] += amount.min(0.0);
-                    accounts[NET_GAINED] += amount.max(0.0);
+                    accounts[NET_NEG] += diff.min(0.0);
+                    accounts[NET_POS] += diff.max(0.0);
                     accounts[YIELD] += diff;
-                    accounts[YIELD_LOST] += diff.min(0.0);
-                    accounts[YIELD_GAINED] += diff.max(0.0);
+                    accounts[YIELD_NEG] += diff.min(0.0);
+                    accounts[YIELD_POS] += diff.max(0.0);
                 }
                 accounts[trans.dst] = amount;
             },
@@ -247,10 +247,10 @@ pub fn update(ts: &[Trans], accounts: &mut Vec<f32>, from: Option<usize>, mut da
                     accounts[INTERNAL_FLOW] += amount;
                 } else if src != NULL && trans.dst == NULL{
                     accounts[NET] -= amount;
-                    accounts[NET_LOST] += amount;
+                    accounts[NET_NEG] += amount;
                 } else if src == NULL && trans.dst != NULL{
                     accounts[NET] += amount;
-                    accounts[NET_GAINED] += amount;
+                    accounts[NET_POS] += amount;
                 }
             },
             TransExt::Tra { src, sub, add } => {
@@ -258,20 +258,20 @@ pub fn update(ts: &[Trans], accounts: &mut Vec<f32>, from: Option<usize>, mut da
                 accounts[trans.dst] += add;
                 accounts[FLOW] += sub.max(add);
                 let diff = add - sub;
-                if diff >= 0.0 { accounts[TRA_GAINED] += diff; }
-                else if diff < 0.0 { accounts[TRA_LOST] -= diff; }
+                if diff >= 0.0 { accounts[TRA_POS] += diff; }
+                else if diff < 0.0 { accounts[TRA_NEG] -= diff; }
                 accounts[TRA] += diff;
                 if src != NULL && trans.dst != NULL{
                     accounts[INTERNAL_FLOW] += sub.max(add);
                     accounts[NET] += diff;
-                    accounts[NET_LOST] += diff.min(0.0);
-                    accounts[NET_GAINED] += diff.max(0.0);
+                    accounts[NET_NEG] += diff.min(0.0);
+                    accounts[NET_POS] += diff.max(0.0);
                 } else if src != NULL && trans.dst == NULL{
                     accounts[NET] -= sub;
-                    accounts[NET_LOST] += sub;
+                    accounts[NET_NEG] += sub;
                 } else if src == NULL && trans.dst != NULL{
                     accounts[NET] += add;
-                    accounts[NET_GAINED] += add;
+                    accounts[NET_POS] += add;
                 }
             }
         }
@@ -324,6 +324,7 @@ impl State{
     fn set_defaults(mut self) -> Self{
         self.account_id("null".to_owned());
         self.account_id("_flow".to_owned());
+        self.account_id("_internal_flow".to_owned());
         self.account_id("_net".to_owned());
         self.account_id("_net_lost".to_owned());
         self.account_id("_net_gained".to_owned());
@@ -333,7 +334,6 @@ impl State{
         self.account_id("_yield".to_owned());
         self.account_id("_yield_lost".to_owned());
         self.account_id("_yield_gained".to_owned());
-        self.account_id("_internal_flow".to_owned());
         self
     }
 
