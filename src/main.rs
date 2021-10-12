@@ -376,7 +376,6 @@ pub enum TransExt{
 pub struct Trans{
     date: (u8, u8, u16),
     dst: usize,
-    comment: String,
     tags: Vec<usize>,
     ext: TransExt,
 }
@@ -401,20 +400,20 @@ impl IntoTrans for String{
         let indices;
         let ext = match splitted[0]{
             "mov" => {
-                indices = (3, 5, 6);
+                indices = (3, 6);
                 TransExt::Mov{
                     src: state.account_id(splitted[2].to_string()),
                     amount: tbl::string_to_value(splitted[4])?,
                 }
             },
             "set" => {
-                indices = (2, 4, 5);
+                indices = (2, 5);
                 TransExt::Set{
                     amount: tbl::string_to_value(splitted[3])?,
                 }
             },
             "tra" => {
-                indices = (3, 6, 7);
+                indices = (3, 7);
                 TransExt::Tra{
                     src: state.account_id(splitted[2].to_string()),
                     sub: tbl::string_to_value(splitted[4])?,
@@ -424,12 +423,11 @@ impl IntoTrans for String{
             _ => return None,
         };
         let dst = state.account_id(splitted[indices.0].to_string());
-        let comment = splitted[indices.1].to_string();
-        let tags = splitted.into_iter().skip(indices.2).map(|raw_tag| state.tag_id(raw_tag.to_string()))
+        let tags = splitted.into_iter().skip(indices.1).map(|raw_tag| state.tag_id(raw_tag.to_string()))
             .collect::<Vec<_>>();
 
         Some(Trans{
-            date, dst, comment, tags, ext
+            date, dst, tags, ext
         })
     }
 }
