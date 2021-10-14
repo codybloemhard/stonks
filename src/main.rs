@@ -29,7 +29,7 @@ fn main() {
     ");
     let infile = args.get_string("file");
     let contents = fs::read_to_string(infile).expect("Couldn't read sample.");
-    let mut state = State::new();
+    let mut state = NameBank::new();
     let ts = contents.split('\n').into_iter().map(|line| line.to_string().into_trans(&mut state))
         .flatten().collect::<Vec<_>>();
     summary(&state, &ts);
@@ -47,8 +47,8 @@ fn main() {
             let mut builder = String::new();
             let mut state = -1;
             for c in clines[ind as usize].chars(){
-                if state == -1{
-                    if c == '#'{
+                if state == -1 {
+                    if c == '#' {
                         state = 0;
                         builder.push(c);
                     }
@@ -75,7 +75,7 @@ fn main() {
     }
 }
 
-pub fn graph(state: &State, ts: &[Trans], include: &[&str], colours: Vec<String>){
+pub fn graph(state: &NameBank, ts: &[Trans], include: &[&str], colours: Vec<String>){
     let hist = time_hist(state, ts);
     let mut page = String::new();
     // Nord theme used
@@ -126,8 +126,8 @@ pub fn graph(state: &State, ts: &[Trans], include: &[&str], colours: Vec<String>
     page.push('[');
     page.push_str("\'Date\',");
     let mut indices = Vec::new();
-    (0..state.ids.next_id).into_iter().for_each(|id| {
-        let name = state.name(id);
+    (0..state.accounts.next_id).into_iter().for_each(|id| {
+        let name = state.account_name(id);
         if include.contains(&&name[..]){
             page.push_str(&format!("\'{}\',", name));
             indices.push(id);
@@ -166,8 +166,8 @@ pub fn graph(state: &State, ts: &[Trans], include: &[&str], colours: Vec<String>
     Command::new("firefox").arg("graph.html").output().expect("Could not open graph in firefox!");
 }
 
-pub fn summary(state: &State, ts: &[Trans]){
-    let mut accounts = vec![0f32; state.ids.next_id];
+pub fn summary(state: &NameBank, ts: &[Trans]){
+    let mut accounts = vec![0f32; state.accounts.next_id];
     update(ts, &mut accounts, None, None);
     let bs = into_nameds(accounts.into_balances(), state);
     for (name, amount) in &bs{
@@ -188,15 +188,15 @@ impl IntoBalances for Vec<f32>{
     }
 }
 
-pub fn into_nameds(bs: Vec<Balance>, state: &State) -> Vec<NamedBalance>{
-    bs.into_iter().map(|(id, val)| (state.name(id), val)).collect::<Vec<_>>()
+pub fn into_nameds(bs: Vec<Balance>, state: &NameBank) -> Vec<NamedBalance>{
+    bs.into_iter().map(|(id, val)| (state.account_name(id), val)).collect::<Vec<_>>()
 }
 
-pub fn time_hist(state: &State, ts: &[Trans]) -> Vec<((u8, u16), Vec<Balance>)>{
+pub fn time_hist(state: &NameBank, ts: &[Trans]) -> Vec<((u8, u16), Vec<Balance>)>{
     let mut hist = Vec::new();
     let mut from = 0;
     let mut date = None;
-    let mut accounts = vec![0f32; state.ids.next_id];
+    let mut accounts = vec![0f32; state.accounts.next_id];
     let mut i = 0;
     loop{
         let mmyy = (ts[from].date.1, ts[from].date.2);
@@ -227,9 +227,9 @@ pub fn update(ts: &[Trans], accounts: &mut Vec<f32>, from: Option<usize>, mut da
             date = Some((trans.date.1, trans.date.2));
         }
         match trans.ext{
-            TransExt::Set { amount } => {
-                if trans.dst != NULL{
-                    let diff = amount - accounts[trans.dst];
+            TransExt::Set { amount, dst } => {
+                if dst != NULL{
+                    let diff = amount - accounts[dst];
                     accounts[NET] += diff;
                     accounts[NET_NEG] += diff.min(0.0);
                     accounts[NET_POS] += diff.max(0.0);
@@ -237,43 +237,46 @@ pub fn update(ts: &[Trans], accounts: &mut Vec<f32>, from: Option<usize>, mut da
                     accounts[YIELD_NEG] += diff.min(0.0);
                     accounts[YIELD_POS] += diff.max(0.0);
                 }
-                accounts[trans.dst] = amount;
+                accounts[dst] = amount;
             },
-            TransExt::Mov { src, amount } => {
+            TransExt::Mov { src, dst, amount } => {
                 accounts[src] -= amount;
-                accounts[trans.dst] += amount;
+                accounts[dst] += amount;
                 accounts[FLOW] += amount;
-                if src != NULL && trans.dst != NULL {
+                if src != NULL && dst != NULL {
                     accounts[INTERNAL_FLOW] += amount;
-                } else if src != NULL && trans.dst == NULL{
+                } else if src != NULL && dst == NULL{
                     accounts[NET] -= amount;
                     accounts[NET_NEG] += amount;
-                } else if src == NULL && trans.dst != NULL{
+                } else if src == NULL && dst != NULL{
                     accounts[NET] += amount;
                     accounts[NET_POS] += amount;
                 }
             },
-            TransExt::Tra { src, sub, add } => {
+            TransExt::Tra { src, dst, sub, add } => {
                 accounts[src] -= sub;
-                accounts[trans.dst] += add;
+                accounts[dst] += add;
                 accounts[FLOW] += sub.max(add);
                 let diff = add - sub;
                 if diff >= 0.0 { accounts[TRA_POS] += diff; }
                 else if diff < 0.0 { accounts[TRA_NEG] -= diff; }
                 accounts[TRA] += diff;
-                if src != NULL && trans.dst != NULL{
+                if src != NULL && dst != NULL{
                     accounts[INTERNAL_FLOW] += sub.max(add);
                     accounts[NET] += diff;
                     accounts[NET_NEG] += diff.min(0.0);
                     accounts[NET_POS] += diff.max(0.0);
-                } else if src != NULL && trans.dst == NULL{
+                } else if src != NULL && dst == NULL{
                     accounts[NET] -= sub;
                     accounts[NET_NEG] += sub;
-                } else if src == NULL && trans.dst != NULL{
+                } else if src == NULL && dst != NULL{
                     accounts[NET] += add;
                     accounts[NET_POS] += add;
                 }
             }
+            TransExt::Ass { asset, amount, worth } => {
+
+            },
         }
     }
     (usize::MAX, date)
@@ -305,17 +308,21 @@ impl Ider{
 }
 
 #[derive(Default)]
-pub struct State{
-    ids: Ider,
-    names: HashMap<usize, String>,
+pub struct NameBank{
+    accounts: Ider,
+    account_names: HashMap<usize, String>,
+    assets: Ider,
+    asset_names: HashMap<usize, String>,
     tags: Ider,
 }
 
-impl State{
+impl NameBank{
     pub fn new() -> Self{
         let temp = Self{
-            ids: Ider::new(),
-            names: HashMap::new(),
+            accounts: Ider::new(),
+            account_names: HashMap::new(),
+            assets: Ider::new(),
+            asset_names: HashMap::new(),
             tags: Ider::new(),
         };
         temp.set_defaults()
@@ -338,13 +345,27 @@ impl State{
     }
 
     pub fn account_id(&mut self, string: String) -> usize{
-        let id = self.ids.get_id(string.clone());
-        self.names.insert(id, string);
+        let id = self.accounts.get_id(string.clone());
+        self.account_names.insert(id, string);
         id
     }
 
-    pub fn name(&self, id: usize) -> String{
-        if let Some(name) = self.names.get(&id){
+    pub fn account_name(&self, id: usize) -> String{
+        if let Some(name) = self.account_names.get(&id){
+            name.to_string()
+        } else {
+            String::from("unnamed")
+        }
+    }
+
+    pub fn asset_id(&mut self, string: String) -> usize{
+        let id = self.assets.get_id(string.clone());
+        self.asset_names.insert(id, string);
+        id
+    }
+
+    pub fn asset_name(&self, id: usize) -> String{
+        if let Some(name) = self.asset_names.get(&id){
             name.to_string()
         } else {
             String::from("unnamed")
@@ -360,32 +381,39 @@ impl State{
 pub enum TransExt{
     Mov{
         src: usize,
+        dst: usize,
         amount: f32,
     },
     Set{
         amount: f32,
+        dst: usize,
     },
     Tra{
         src: usize,
+        dst: usize,
         sub: f32,
         add: f32,
+    },
+    Ass{
+        asset: usize,
+        amount: f32,
+        worth: f32,
     }
 }
 
 #[derive(Debug)]
 pub struct Trans{
     date: (u8, u8, u16),
-    dst: usize,
     tags: Vec<usize>,
     ext: TransExt,
 }
 
 trait IntoTrans{
-    fn into_trans(self, state: &mut State) -> Option<Trans>;
+    fn into_trans(self, state: &mut NameBank) -> Option<Trans>;
 }
 
 impl IntoTrans for String{
-    fn into_trans(self, state: &mut State) -> Option<Trans>{
+    fn into_trans(self, state: &mut NameBank) -> Option<Trans>{
         if self.is_empty() { return None; }
         if self.starts_with('#') { return None; }
         let splitted = self.split(',').collect::<Vec<_>>();
@@ -397,37 +425,47 @@ impl IntoTrans for String{
             tbl::string_to_value(triple[1])?,
             tbl::string_to_value(triple[2])?,
         );
-        let indices;
+        let tags_ind;
         let ext = match splitted[0]{
             "mov" => {
-                indices = (3, 6);
+                tags_ind = 6;
                 TransExt::Mov{
                     src: state.account_id(splitted[2].to_string()),
+                    dst: state.account_id(splitted[3].to_string()),
                     amount: tbl::string_to_value(splitted[4])?,
                 }
             },
             "set" => {
-                indices = (2, 5);
+                tags_ind = 5;
                 TransExt::Set{
+                    dst: state.account_id(splitted[2].to_string()),
                     amount: tbl::string_to_value(splitted[3])?,
                 }
             },
             "tra" => {
-                indices = (3, 7);
+                tags_ind = 7;
                 TransExt::Tra{
                     src: state.account_id(splitted[2].to_string()),
+                    dst: state.account_id(splitted[3].to_string()),
                     sub: tbl::string_to_value(splitted[4])?,
                     add: tbl::string_to_value(splitted[5])?,
                 }
-            }
+            },
+            "ass" => {
+                tags_ind = 5;
+                TransExt::Ass{
+                    asset: state.asset_id(splitted[2].to_string()),
+                    amount: tbl::string_to_value(splitted[3])?,
+                    worth: tbl::string_to_value(splitted[4])?,
+                }
+            },
             _ => return None,
         };
-        let dst = state.account_id(splitted[indices.0].to_string());
-        let tags = splitted.into_iter().skip(indices.1).map(|raw_tag| state.tag_id(raw_tag.to_string()))
+        let tags = splitted.into_iter().skip(tags_ind).map(|raw_tag| state.tag_id(raw_tag.to_string()))
             .collect::<Vec<_>>();
 
         Some(Trans{
-            date, dst, tags, ext
+            date, tags, ext
         })
     }
 }
