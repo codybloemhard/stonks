@@ -166,12 +166,28 @@ pub fn graph(state: &NameBank, ts: &[Trans], include: &[&str], colours: Vec<Stri
     Command::new("firefox").arg("graph.html").output().expect("Could not open graph in firefox!");
 }
 
-pub fn summary(state: &NameBank, ts: &[Trans]){
-    let mut accounts = vec![0f32; state.accounts.next_id];
-    update(ts, &mut accounts, None, None);
-    let bs = into_nameds(accounts.into_balances(), state);
-    for (name, amount) in &bs{
+pub fn summary(namebank: &NameBank, ts: &[Trans]){
+    let mut state = State::new(namebank);
+    update(ts, &mut state, None, None);
+    let accounts = into_named_accounts(state.accounts.into_balances(), namebank);
+    for (name, amount) in &accounts{
         println!("{}: {}", name, amount);
+    }
+    println!("---------------");
+    let amounts = into_named_assets(state.asset_amounts.into_balances(), namebank);
+    let prices = into_named_assets(state.asset_prices.into_balances(), namebank);
+    let it = amounts.iter().zip(prices.iter());
+    let total_assets_worth: f32 = it.fold(0.0, |acc, ((_, a), (_, p))| acc + a * p);
+    let mut data_rows = Vec::new();
+    for ((name, amount), (_, price)) in amounts.iter().zip(prices.iter()){
+        let worth = amount * price;
+        data_rows.push((name, amount, worth, price, worth / total_assets_worth));
+    }
+    data_rows.sort_by(|(_, _, _, _, sa), (_, _, _, _, sb)| sb.partial_cmp(sa).unwrap());
+    println!("Total assets worth: {}", total_assets_worth);
+    for (name, amount, worth, price, share) in data_rows{
+        println!("{}: {} worth {} priced {} at {}% of total",
+            name, amount, worth, price, share);
     }
 }
 
@@ -188,20 +204,24 @@ impl IntoBalances for Vec<f32>{
     }
 }
 
-pub fn into_nameds(bs: Vec<Balance>, state: &NameBank) -> Vec<NamedBalance>{
+pub fn into_named_accounts(bs: Vec<Balance>, state: &NameBank) -> Vec<NamedBalance>{
     bs.into_iter().map(|(id, val)| (state.account_name(id), val)).collect::<Vec<_>>()
 }
 
-pub fn time_hist(state: &NameBank, ts: &[Trans]) -> Vec<((u8, u16), Vec<Balance>)>{
+pub fn into_named_assets(bs: Vec<Balance>, state: &NameBank) -> Vec<NamedBalance>{
+    bs.into_iter().map(|(id, val)| (state.asset_name(id), val)).collect::<Vec<_>>()
+}
+
+pub fn time_hist(namebank: &NameBank, ts: &[Trans]) -> Vec<((u8, u16), Vec<Balance>)>{
     let mut hist = Vec::new();
     let mut from = 0;
     let mut date = None;
-    let mut accounts = vec![0f32; state.accounts.next_id];
+    let mut state = State::new(namebank);
     let mut i = 0;
     loop{
         let mmyy = (ts[from].date.1, ts[from].date.2);
-        let (new_from, new_date) = update(ts, &mut accounts, Some(from), date);
-        hist.push((mmyy, accounts.clone().into_balances()));
+        let (new_from, new_date) = update(ts, &mut state, Some(from), date);
+        hist.push((mmyy, state.accounts.clone().into_balances()));
         if new_from >= ts.len(){
             break;
         }
@@ -213,7 +233,7 @@ pub fn time_hist(state: &NameBank, ts: &[Trans]) -> Vec<((u8, u16), Vec<Balance>
     hist
 }
 
-pub fn update(ts: &[Trans], accounts: &mut Vec<f32>, from: Option<usize>, mut date: Option<(u8, u16)>) -> (usize, Option<(u8, u16)>){
+pub fn update(ts: &[Trans], state: &mut State, from: Option<usize>, mut date: Option<(u8, u16)>) -> (usize, Option<(u8, u16)>){
     let skip = if let Some(skip) = from { skip } else { 0 };
     let all = from.is_none();
     for (i, trans) in ts.iter().skip(skip).enumerate(){
@@ -229,57 +249,74 @@ pub fn update(ts: &[Trans], accounts: &mut Vec<f32>, from: Option<usize>, mut da
         match trans.ext{
             TransExt::Set { amount, dst } => {
                 if dst != NULL{
-                    let diff = amount - accounts[dst];
-                    accounts[NET] += diff;
-                    accounts[NET_NEG] += diff.min(0.0);
-                    accounts[NET_POS] += diff.max(0.0);
-                    accounts[YIELD] += diff;
-                    accounts[YIELD_NEG] += diff.min(0.0);
-                    accounts[YIELD_POS] += diff.max(0.0);
+                    let diff = amount - state.accounts[dst];
+                    state.accounts[NET] += diff;
+                    state.accounts[NET_NEG] += diff.min(0.0);
+                    state.accounts[NET_POS] += diff.max(0.0);
+                    state.accounts[YIELD] += diff;
+                    state.accounts[YIELD_NEG] += diff.min(0.0);
+                    state.accounts[YIELD_POS] += diff.max(0.0);
                 }
-                accounts[dst] = amount;
+                state.accounts[dst] = amount;
             },
             TransExt::Mov { src, dst, amount } => {
-                accounts[src] -= amount;
-                accounts[dst] += amount;
-                accounts[FLOW] += amount;
+                state.accounts[src] -= amount;
+                state.accounts[dst] += amount;
+                state.accounts[FLOW] += amount;
                 if src != NULL && dst != NULL {
-                    accounts[INTERNAL_FLOW] += amount;
+                    state.accounts[INTERNAL_FLOW] += amount;
                 } else if src != NULL && dst == NULL{
-                    accounts[NET] -= amount;
-                    accounts[NET_NEG] += amount;
+                    state.accounts[NET] -= amount;
+                    state.accounts[NET_NEG] += amount;
                 } else if src == NULL && dst != NULL{
-                    accounts[NET] += amount;
-                    accounts[NET_POS] += amount;
+                    state.accounts[NET] += amount;
+                    state.accounts[NET_POS] += amount;
                 }
             },
             TransExt::Tra { src, dst, sub, add } => {
-                accounts[src] -= sub;
-                accounts[dst] += add;
-                accounts[FLOW] += sub.max(add);
+                state.accounts[src] -= sub;
+                state.accounts[dst] += add;
+                state.accounts[FLOW] += sub.max(add);
                 let diff = add - sub;
-                if diff >= 0.0 { accounts[TRA_POS] += diff; }
-                else if diff < 0.0 { accounts[TRA_NEG] -= diff; }
-                accounts[TRA] += diff;
+                if diff >= 0.0 { state.accounts[TRA_POS] += diff; }
+                else if diff < 0.0 { state.accounts[TRA_NEG] -= diff; }
+                state.accounts[TRA] += diff;
                 if src != NULL && dst != NULL{
-                    accounts[INTERNAL_FLOW] += sub.max(add);
-                    accounts[NET] += diff;
-                    accounts[NET_NEG] += diff.min(0.0);
-                    accounts[NET_POS] += diff.max(0.0);
+                    state.accounts[INTERNAL_FLOW] += sub.max(add);
+                    state.accounts[NET] += diff;
+                    state.accounts[NET_NEG] += diff.min(0.0);
+                    state.accounts[NET_POS] += diff.max(0.0);
                 } else if src != NULL && dst == NULL{
-                    accounts[NET] -= sub;
-                    accounts[NET_NEG] += sub;
+                    state.accounts[NET] -= sub;
+                    state.accounts[NET_NEG] += sub;
                 } else if src == NULL && dst != NULL{
-                    accounts[NET] += add;
-                    accounts[NET_POS] += add;
+                    state.accounts[NET] += add;
+                    state.accounts[NET_POS] += add;
                 }
             }
             TransExt::Ass { asset, amount, worth } => {
-
+                state.asset_amounts[asset] = amount;
+                state.asset_prices[asset] = worth / amount;
             },
         }
     }
     (usize::MAX, date)
+}
+
+pub struct State{
+    pub accounts: Vec<f32>,
+    pub asset_amounts: Vec<f32>,
+    pub asset_prices: Vec<f32>,
+}
+
+impl State{
+    pub fn new(nb: &NameBank) -> Self{
+        Self{
+            accounts: vec![0.0; nb.accounts.next_id],
+            asset_amounts: vec![0.0; nb.assets.next_id],
+            asset_prices: vec![0.0; nb.assets.next_id],
+        }
+    }
 }
 
 #[derive(Default)]
