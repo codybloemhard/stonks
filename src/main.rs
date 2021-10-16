@@ -34,6 +34,14 @@ fn main() {
         .flatten().collect::<Vec<_>>();
     summary(&state, &ts);
 
+    let colours = get_graph_colours(&args);
+    let includes = args.get_strings("accounts");
+    if !includes.is_empty(){
+        graph(&state, &ts, &includes.iter().map(|s| s.as_str()).collect::<Vec<_>>(), colours);
+    }
+}
+
+pub fn get_graph_colours(args: &lapp::Args) -> Vec<String>{
     let mut colours = Vec::new();
     let palette_source = args.get_string("palette");
     if !palette_source.is_empty(){
@@ -68,11 +76,7 @@ fn main() {
             colours.push(colour.to_owned().to_string());
         }
     }
-
-    let includes = args.get_strings("accounts");
-    if !includes.is_empty(){
-        graph(&state, &ts, &includes.iter().map(|s| s.as_str()).collect::<Vec<_>>(), colours);
-    }
+    colours
 }
 
 pub fn graph(state: &NameBank, ts: &[Trans], include: &[&str], colours: Vec<String>){
@@ -182,8 +186,10 @@ pub fn summary(namebank: &NameBank, ts: &[Trans]){
     for ((name, amount), (_, price)) in amounts.iter().zip(prices.iter()){
         let worth = amount * price;
         data_rows.push((name, amount, worth, price, worth / total_assets_worth));
+        println!("{}, {}, {}", name, amount, worth);
     }
-    data_rows.sort_by(|(_, _, _, _, sa), (_, _, _, _, sb)| sb.partial_cmp(sa).unwrap());
+    data_rows.sort_by(|(_, _, _, _, sa), (_, _, _, _, sb)|
+        sb.partial_cmp(sa).unwrap_or(std::cmp::Ordering::Less));
     println!("Total assets worth: {}", total_assets_worth);
     for (name, amount, worth, price, share) in data_rows{
         println!("{}: {} worth {} priced {} at {}% of total",
@@ -293,10 +299,14 @@ pub fn update(ts: &[Trans], state: &mut State, from: Option<usize>, mut date: Op
                     state.accounts[NET] += add;
                     state.accounts[NET_POS] += add;
                 }
-            }
-            TransExt::Ass { asset, amount, worth } => {
-                state.asset_amounts[asset] = amount;
+            },
+            TransExt::Pri { asset, amount, worth } => {
                 state.asset_prices[asset] = worth / amount;
+                println!("{}", worth / amount);
+            },
+            TransExt::Con { src, src_amount, dst, dst_amount } => {
+                state.asset_amounts[src] -= src_amount;
+                state.asset_amounts[dst] += dst_amount;
             },
         }
     }
@@ -431,11 +441,17 @@ pub enum TransExt{
         sub: f32,
         add: f32,
     },
-    Ass{
+    Pri{
         asset: usize,
         amount: f32,
         worth: f32,
-    }
+    },
+    Con{
+        src: usize,
+        dst: usize,
+        src_amount: f32,
+        dst_amount: f32,
+    },
 }
 
 #[derive(Debug)]
@@ -488,14 +504,23 @@ impl IntoTrans for String{
                     add: tbl::string_to_value(splitted[5])?,
                 }
             },
-            "ass" => {
+            "pri" => {
                 tags_ind = 5;
-                TransExt::Ass{
+                TransExt::Pri{
                     asset: state.asset_id(splitted[2].to_string()),
                     amount: tbl::string_to_value(splitted[3])?,
                     worth: tbl::string_to_value(splitted[4])?,
                 }
             },
+            "con" => {
+                tags_ind = 6;
+                TransExt::Con{
+                    src: state.asset_id(splitted[2].to_string()),
+                    src_amount: tbl::string_to_value(splitted[3])?,
+                    dst: state.asset_id(splitted[4].to_string()),
+                    dst_amount: tbl::string_to_value(splitted[5])?,
+                }
+            }
             _ => return None,
         };
         let tags = splitted.into_iter().skip(tags_ind).map(|raw_tag| state.tag_id(raw_tag.to_string()))
