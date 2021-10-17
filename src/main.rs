@@ -29,15 +29,16 @@ fn main() {
     ");
     let infile = args.get_string("file");
     let contents = fs::read_to_string(infile).expect("Couldn't read sample.");
-    let mut state = NameBank::new();
-    let ts = contents.split('\n').into_iter().map(|line| line.to_string().into_trans(&mut state))
-        .flatten().collect::<Vec<_>>();
-    summary(&state, &ts);
+    let mut namebank = NameBank::new();
+    let mut date = Date::default();
+    let ts = contents.split('\n').into_iter().map(|line| line.to_string()
+        .into_trans(&mut namebank, &mut date)).flatten().collect::<Vec<_>>();
+    summary(&namebank, &ts);
 
     let colours = get_graph_colours(&args);
     let includes = args.get_strings("accounts");
     if !includes.is_empty(){
-        graph(&state, &ts, &includes.iter().map(|s| s.as_str()).collect::<Vec<_>>(), colours);
+        graph(&namebank, &ts, &includes.iter().map(|s| s.as_str()).collect::<Vec<_>>(), colours);
     }
 }
 
@@ -193,7 +194,7 @@ pub fn summary(namebank: &NameBank, ts: &[Trans]){
     println!("Total assets worth: {}", total_assets_worth);
     for (name, amount, worth, price, share) in data_rows{
         println!("{}: {} worth {} priced {} at {}% of total",
-            name, amount, worth, price, share);
+            name, amount, worth, price, share * 100.0);
     }
 }
 
@@ -302,7 +303,6 @@ pub fn update(ts: &[Trans], state: &mut State, from: Option<usize>, mut date: Op
             },
             TransExt::Pri { asset, amount, worth } => {
                 state.asset_prices[asset] = worth / amount;
-                println!("{}", worth / amount);
             },
             TransExt::Con { src, src_amount, dst, dst_amount } => {
                 state.asset_amounts[src] -= src_amount;
@@ -454,32 +454,43 @@ pub enum TransExt{
     },
 }
 
+pub type Date = (u8, u8, u16);
+
 #[derive(Debug)]
 pub struct Trans{
-    date: (u8, u8, u16),
+    date: Date,
     tags: Vec<usize>,
     ext: TransExt,
 }
 
 trait IntoTrans{
-    fn into_trans(self, state: &mut NameBank) -> Option<Trans>;
+    fn into_trans(self, state: &mut NameBank, date: &mut Date) -> Option<Trans>;
 }
 
 impl IntoTrans for String{
-    fn into_trans(self, state: &mut NameBank) -> Option<Trans>{
+    fn into_trans(self, state: &mut NameBank, date: &mut Date) -> Option<Trans>{
         if self.is_empty() { return None; }
         if self.starts_with('#') { return None; }
         let splitted = self.split(',').collect::<Vec<_>>();
-        if splitted.len() < 3 { return None; }
-        let triple = splitted[1].split(';').collect::<Vec<_>>();
-        if triple.len() != 3 { return None; }
-        let date: (u8, u8, u16) = (
-            tbl::string_to_value(triple[0])?,
-            tbl::string_to_value(triple[1])?,
-            tbl::string_to_value(triple[2])?,
-        );
+        if splitted.len() < 2 { return None; }
+        let parse_date = |string: &str| {
+            let triple = string.split(';').collect::<Vec<_>>();
+            if triple.len() != 3 { return None; }
+            Some((
+                tbl::string_to_value(triple[0])?,
+                tbl::string_to_value(triple[1])?,
+                tbl::string_to_value(triple[2])?,
+            ))
+        };
+        if splitted[1] != "_"{
+            *date = parse_date(splitted[1])?;
+        }
         let tags_ind;
         let ext = match splitted[0]{
+            "dat" => {
+                *date = parse_date(splitted[1])?;
+                return None;
+            },
             "mov" => {
                 tags_ind = 6;
                 TransExt::Mov{
@@ -520,14 +531,14 @@ impl IntoTrans for String{
                     dst: state.asset_id(splitted[4].to_string()),
                     dst_amount: tbl::string_to_value(splitted[5])?,
                 }
-            }
+            },
             _ => return None,
         };
         let tags = splitted.into_iter().skip(tags_ind).map(|raw_tag| state.tag_id(raw_tag.to_string()))
             .collect::<Vec<_>>();
 
         Some(Trans{
-            date, tags, ext
+            date: *date, tags, ext
         })
     }
 }
