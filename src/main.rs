@@ -6,6 +6,8 @@ use std::process::Command;
 
 use term_basics_linux as tbl;
 
+const REAL_FIAT: usize = 0;
+const FIAT: usize = 1;
 const NULL: usize = 0;
 const FLOW: usize = 1;
 const INTERNAL_FLOW: usize = 2;
@@ -187,7 +189,6 @@ pub fn summary(namebank: &NameBank, ts: &[Trans]){
     for ((name, amount), (_, price)) in amounts.iter().zip(prices.iter()){
         let worth = amount * price;
         data_rows.push((name, amount, worth, price, worth / total_assets_worth));
-        println!("{}, {}, {}", name, amount, worth);
     }
     data_rows.sort_by(|(_, _, _, _, sa), (_, _, _, _, sb)|
         sb.partial_cmp(sa).unwrap_or(std::cmp::Ordering::Less));
@@ -255,14 +256,17 @@ pub fn update(ts: &[Trans], state: &mut State, from: Option<usize>, mut date: Op
         }
         match trans.ext{
             TransExt::Set { amount, dst } => {
+                let diff = amount - state.accounts[dst];
                 if dst != NULL{
-                    let diff = amount - state.accounts[dst];
                     state.accounts[NET] += diff;
                     state.accounts[NET_NEG] += diff.min(0.0);
                     state.accounts[NET_POS] += diff.max(0.0);
                     state.accounts[YIELD] += diff;
                     state.accounts[YIELD_NEG] += diff.min(0.0);
                     state.accounts[YIELD_POS] += diff.max(0.0);
+                }
+                if state.account_labels[dst] == AccountLabel::Fiat{
+                    state.asset_amounts[REAL_FIAT] += diff;
                 }
                 state.accounts[dst] = amount;
             },
@@ -278,6 +282,21 @@ pub fn update(ts: &[Trans], state: &mut State, from: Option<usize>, mut date: Op
                 } else if src == NULL && dst != NULL{
                     state.accounts[NET] += amount;
                     state.accounts[NET_POS] += amount;
+                }
+                let srcl = state.account_labels[src];
+                let dstl = state.account_labels[dst];
+                if srcl == AccountLabel::Fiat && dstl != AccountLabel::Fiat{
+                    state.asset_amounts[REAL_FIAT] -= amount;
+                    // When used correctly, this FIAT is converted away to assets
+                    if dstl == AccountLabel::Assets{
+                        state.asset_amounts[FIAT] += amount;
+                    }
+                } else if dstl == AccountLabel::Fiat && srcl != AccountLabel::Fiat{
+                    state.asset_amounts[REAL_FIAT] += amount;
+                    // When used correctly, this FIAT is converted away to assets
+                    if srcl == AccountLabel::Assets{
+                        state.asset_amounts[FIAT] -= amount;
+                    }
                 }
             },
             TransExt::Tra { src, dst, sub, add } => {
@@ -300,6 +319,22 @@ pub fn update(ts: &[Trans], state: &mut State, from: Option<usize>, mut date: Op
                     state.accounts[NET] += add;
                     state.accounts[NET_POS] += add;
                 }
+                let srcl = state.account_labels[src];
+                let dstl = state.account_labels[dst];
+                if srcl == AccountLabel::Fiat && dstl != AccountLabel::Fiat{
+                    state.asset_amounts[REAL_FIAT] -= sub;
+                    // When used correctly, this FIAT is converted away to assets
+                    if dstl == AccountLabel::Assets{
+                        state.asset_amounts[FIAT] += add;
+                    }
+                } else if dstl == AccountLabel::Fiat && srcl != AccountLabel::Fiat{
+                    state.asset_amounts[REAL_FIAT] += add;
+                    // When used correctly, this FIAT is converted away to assets
+                    // convert X assets to ADD fiat, making FIAT 0 again
+                    if srcl == AccountLabel::Assets{
+                        state.asset_amounts[FIAT] -= add;
+                    }
+                }
             },
             TransExt::Pri { asset, amount, worth } => {
                 state.asset_prices[asset] = worth / amount;
@@ -308,13 +343,28 @@ pub fn update(ts: &[Trans], state: &mut State, from: Option<usize>, mut date: Op
                 state.asset_amounts[src] -= src_amount;
                 state.asset_amounts[dst] += dst_amount;
             },
+            TransExt::Ass { account } => {
+                state.account_labels[account] = AccountLabel::Assets;
+            },
+            TransExt::Deb { account } => {
+                state.account_labels[account] = AccountLabel::Debt;
+            }
         }
     }
     (usize::MAX, date)
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum AccountLabel{
+    Null,
+    Fiat,
+    Assets,
+    Debt,
+}
+
 pub struct State{
     pub accounts: Vec<f32>,
+    pub account_labels: Vec<AccountLabel>,
     pub asset_amounts: Vec<f32>,
     pub asset_prices: Vec<f32>,
 }
@@ -323,6 +373,9 @@ impl State{
     pub fn new(nb: &NameBank) -> Self{
         Self{
             accounts: vec![0.0; nb.accounts.next_id],
+            account_labels: (0 .. nb.accounts.next_id)
+                .into_iter().map(|i| if i == 0 { AccountLabel::Null } else { AccountLabel::Fiat } )
+                .collect::<Vec<_>>(),
             asset_amounts: vec![0.0; nb.assets.next_id],
             asset_prices: vec![0.0; nb.assets.next_id],
         }
@@ -388,6 +441,8 @@ impl NameBank{
         self.account_id("_yield".to_owned());
         self.account_id("_yield_lost".to_owned());
         self.account_id("_yield_gained".to_owned());
+        self.asset_id("REAL_FIAT".to_owned());
+        self.asset_id("FIAT".to_owned());
         self
     }
 
@@ -452,6 +507,12 @@ pub enum TransExt{
         src_amount: f32,
         dst_amount: f32,
     },
+    Ass{
+        account: usize,
+    },
+    Deb{
+        account: usize,
+    },
 }
 
 pub type Date = (u8, u8, u16);
@@ -468,7 +529,7 @@ trait IntoTrans{
 }
 
 impl IntoTrans for String{
-    fn into_trans(self, state: &mut NameBank, date: &mut Date) -> Option<Trans>{
+    fn into_trans(self, nb: &mut NameBank, date: &mut Date) -> Option<Trans>{
         if self.is_empty() { return None; }
         if self.starts_with('#') { return None; }
         let splitted = self.split(',').collect::<Vec<_>>();
@@ -494,23 +555,23 @@ impl IntoTrans for String{
             "mov" => {
                 tags_ind = 6;
                 TransExt::Mov{
-                    src: state.account_id(splitted[2].to_string()),
-                    dst: state.account_id(splitted[3].to_string()),
+                    src: nb.account_id(splitted[2].to_string()),
+                    dst: nb.account_id(splitted[3].to_string()),
                     amount: tbl::string_to_value(splitted[4])?,
                 }
             },
             "set" => {
                 tags_ind = 5;
                 TransExt::Set{
-                    dst: state.account_id(splitted[2].to_string()),
+                    dst: nb.account_id(splitted[2].to_string()),
                     amount: tbl::string_to_value(splitted[3])?,
                 }
             },
             "tra" => {
                 tags_ind = 7;
                 TransExt::Tra{
-                    src: state.account_id(splitted[2].to_string()),
-                    dst: state.account_id(splitted[3].to_string()),
+                    src: nb.account_id(splitted[2].to_string()),
+                    dst: nb.account_id(splitted[3].to_string()),
                     sub: tbl::string_to_value(splitted[4])?,
                     add: tbl::string_to_value(splitted[5])?,
                 }
@@ -518,7 +579,7 @@ impl IntoTrans for String{
             "pri" => {
                 tags_ind = 5;
                 TransExt::Pri{
-                    asset: state.asset_id(splitted[2].to_string()),
+                    asset: nb.asset_id(splitted[2].to_string()),
                     amount: tbl::string_to_value(splitted[3])?,
                     worth: tbl::string_to_value(splitted[4])?,
                 }
@@ -526,15 +587,27 @@ impl IntoTrans for String{
             "con" => {
                 tags_ind = 6;
                 TransExt::Con{
-                    src: state.asset_id(splitted[2].to_string()),
+                    src: nb.asset_id(splitted[2].to_string()),
                     src_amount: tbl::string_to_value(splitted[3])?,
-                    dst: state.asset_id(splitted[4].to_string()),
+                    dst: nb.asset_id(splitted[4].to_string()),
                     dst_amount: tbl::string_to_value(splitted[5])?,
+                }
+            },
+            "ass" => {
+                tags_ind = 3;
+                TransExt::Ass{
+                    account: nb.account_id(splitted[2].to_string()),
+                }
+            },
+            "deb" => {
+                tags_ind = 3;
+                TransExt::Deb{
+                    account: nb.account_id(splitted[2].to_string()),
                 }
             },
             _ => return None,
         };
-        let tags = splitted.into_iter().skip(tags_ind).map(|raw_tag| state.tag_id(raw_tag.to_string()))
+        let tags = splitted.into_iter().skip(tags_ind).map(|raw_tag| nb.tag_id(raw_tag.to_string()))
             .collect::<Vec<_>>();
 
         Some(Trans{
