@@ -181,18 +181,28 @@ pub fn summary(namebank: &NameBank, ts: &[Trans]){
         println!("{}: {}", name, amount);
     }
     println!("---------------");
+
     let amounts = into_named_assets(state.asset_amounts.into_balances(), namebank);
     let prices = into_named_assets(state.asset_prices.into_balances(), namebank);
     let it = amounts.iter().zip(prices.iter());
-    let total_assets_worth: f32 = it.fold(0.0, |acc, ((_, a), (_, p))| acc + a * p);
+    let total_holdings_worth: f32 = it.fold(0.0, |acc, ((_, a), (_, p))| acc + a * p);
+    let real_fiat = amounts[0].1;
+    let shadowrealm_fiat = amounts[1].1;
+    let fiat_split = real_fiat / total_holdings_worth * 100.0;
+    println!("Total holdings worth: {}", total_holdings_worth);
+    println!("With a split of {}% assets and {}% fiat", 100.0 - fiat_split, fiat_split);
+    println!("A total of {} fiat is stuck in the shadowrealm", shadowrealm_fiat);
+    println!("---------------");
+
     let mut data_rows = Vec::new();
     for ((name, amount), (_, price)) in amounts.iter().zip(prices.iter()){
+        if *price == 0.0 { continue; }
+        if *amount < 0.000001 { continue; }
         let worth = amount * price;
-        data_rows.push((name, amount, worth, price, worth / total_assets_worth));
+        data_rows.push((name, amount, worth, price, worth / total_holdings_worth));
     }
     data_rows.sort_by(|(_, _, _, _, sa), (_, _, _, _, sb)|
         sb.partial_cmp(sa).unwrap_or(std::cmp::Ordering::Less));
-    println!("Total assets worth: {}", total_assets_worth);
     for (name, amount, worth, price, share) in data_rows{
         println!("{}: {} worth {} priced {} at {}% of total",
             name, amount, worth, price, share * 100.0);
@@ -371,13 +381,15 @@ pub struct State{
 
 impl State{
     pub fn new(nb: &NameBank) -> Self{
+        let mut account_labels = vec![AccountLabel::Fiat; nb.accounts.next_id];
+        account_labels[0] = AccountLabel::Null;
+        let mut asset_prices = vec![0.0; nb.assets.next_id];
+        asset_prices[0] = 1.0;
         Self{
             accounts: vec![0.0; nb.accounts.next_id],
-            account_labels: (0 .. nb.accounts.next_id)
-                .into_iter().map(|i| if i == 0 { AccountLabel::Null } else { AccountLabel::Fiat } )
-                .collect::<Vec<_>>(),
+            account_labels,
             asset_amounts: vec![0.0; nb.assets.next_id],
-            asset_prices: vec![0.0; nb.assets.next_id],
+            asset_prices,
         }
     }
 }
