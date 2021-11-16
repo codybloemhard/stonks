@@ -346,8 +346,15 @@ pub fn update(ts: &[Trans], state: &mut State, from: Option<usize>, mut date: Op
                     }
                 }
             },
+            TransExt::Dec { asset, amount } => {
+                state.asset_amounts[asset] = amount;
+            },
             TransExt::Pri { asset, amount, worth } => {
                 state.asset_prices[asset] = worth / amount;
+            },
+            TransExt::Pin { asset, amount, worth } => {
+                state.asset_prices[asset] = worth / amount;
+                state.asset_amounts[asset] = amount;
             },
             TransExt::Con { src, src_amount, dst, dst_amount } => {
                 state.asset_amounts[src] -= src_amount;
@@ -508,7 +515,16 @@ pub enum TransExt{
         sub: f32,
         add: f32,
     },
+    Dec{
+        asset: usize,
+        amount: f32,
+    },
     Pri{
+        asset: usize,
+        amount: f32,
+        worth: f32,
+    },
+    Pin{
         asset: usize,
         amount: f32,
         worth: f32,
@@ -588,9 +604,24 @@ impl IntoTrans for String{
                     add: tbl::string_to_value(splitted[5])?,
                 }
             },
+            "dec" => {
+                tags_ind = 4;
+                TransExt::Dec{
+                    asset: nb.asset_id(splitted[2].to_string()),
+                    amount: tbl::string_to_value(splitted[3])?,
+                }
+            },
             "pri" => {
                 tags_ind = 5;
                 TransExt::Pri{
+                    asset: nb.asset_id(splitted[2].to_string()),
+                    amount: tbl::string_to_value(splitted[3])?,
+                    worth: tbl::string_to_value(splitted[4])?,
+                }
+            },
+            "pin" => {
+                tags_ind = 5;
+                TransExt::Pin{
                     asset: nb.asset_id(splitted[2].to_string()),
                     amount: tbl::string_to_value(splitted[3])?,
                     worth: tbl::string_to_value(splitted[4])?,
