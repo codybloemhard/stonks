@@ -27,10 +27,12 @@ fn main() {
         -a, --accounts (string...) accounts to graph
         -p, --palette (default \'\') file to read colours from
         -c, --colours (integer...) lines to get colours from (bg, fg, col0, col1, ...)
+        -b, --browser (default firefox) browser to show graph in
         <file> (string) transactional \"database\" file
     ");
     let infile = args.get_string("file");
     let contents = fs::read_to_string(infile).expect("Couldn't read sample.");
+    let browser = args.get_string("browser");
     let mut namebank = NameBank::new();
     let mut date = Date::default();
     let ts = contents.split('\n').into_iter().map(|line| line.to_string()
@@ -40,7 +42,7 @@ fn main() {
     let colours = get_graph_colours(&args);
     let includes = args.get_strings("accounts");
     if !includes.is_empty(){
-        graph(&namebank, &ts, &includes.iter().map(|s| s.as_str()).collect::<Vec<_>>(), colours);
+        graph(&namebank, &ts, &includes.iter().map(|s| s.as_str()).collect::<Vec<_>>(), colours, &browser);
     }
 }
 
@@ -82,7 +84,7 @@ pub fn get_graph_colours(args: &lapp::Args) -> Vec<String>{
     colours
 }
 
-pub fn graph(state: &NameBank, ts: &[Trans], include: &[&str], colours: Vec<String>){
+pub fn graph(state: &NameBank, ts: &[Trans], include: &[&str], colours: Vec<String>, browser: &str){
     let hist = time_hist(state, ts);
     let mut page = String::new();
     // Nord theme used
@@ -170,7 +172,7 @@ pub fn graph(state: &NameBank, ts: &[Trans], include: &[&str], colours: Vec<Stri
     page.push_str(&tail);
     let mut file = File::create("graph.html").expect("Could not create file!");
     file.write_all(page.as_bytes()).expect("Could not write to file!");
-    Command::new("firefox").arg("graph.html").output().expect("Could not open graph in firefox!");
+    Command::new(browser.to_string()).arg("graph.html").output().unwrap_or_else(|_| panic!("Could not open graph in {}!", browser));
 }
 
 pub fn summary(namebank: &NameBank, ts: &[Trans]){
