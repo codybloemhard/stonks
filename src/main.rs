@@ -5,6 +5,7 @@ use std::collections::{ HashMap };
 use std::process::Command;
 
 use term_basics_linux as tbl;
+use tbl::{ UC };
 
 const REAL_FIAT: usize = 0;
 const FIAT: usize = 1;
@@ -179,10 +180,14 @@ pub fn summary(namebank: &NameBank, ts: &[Trans]){
     let mut state = State::new(namebank);
     update(ts, &mut state, None, None);
     let accounts = into_named_accounts(state.accounts.into_balances(), namebank);
+    let (textc, infoc, namec, posc, negc, fracc) = (UC::Std, UC::Magenta, UC::Blue, UC::Green, UC::Red, UC::Yellow);
+    let pncol = |v: f32| if v < 0.0 { negc } else { posc };
+    println!("{}---------------", infoc);
+    println!("{}Accounts:", infoc);
     for (name, amount) in &accounts{
-        println!("{}: {}", name, amount);
+        println!("{}{}: {}{}", namec, name, pncol(*amount), amount);
     }
-    println!("---------------");
+    println!("{}---------------", infoc);
 
     let amounts = into_named_assets(state.asset_amounts.into_balances(), namebank);
     let prices = into_named_assets(state.asset_prices.into_balances(), namebank);
@@ -191,10 +196,12 @@ pub fn summary(namebank: &NameBank, ts: &[Trans]){
     let real_fiat = amounts[0].1;
     let shadowrealm_fiat = amounts[1].1;
     let fiat_split = real_fiat / total_holdings_worth * 100.0;
-    println!("Total holdings worth: {}", total_holdings_worth);
-    println!("With a split of {}% assets and {}% fiat", 100.0 - fiat_split, fiat_split);
-    println!("A total of {} fiat is stuck in the shadowrealm", shadowrealm_fiat);
-    println!("---------------");
+    println!("{}Distribution", infoc);
+    println!("{}Total holdings worth: {}{}", textc, posc, total_holdings_worth);
+    println!("{t}With a split of {f}{a}{t}% assets and {f}{b}{t}% fiat",
+             t = textc, f = fracc, a = 100.0 - fiat_split, b = fiat_split);
+    println!("{t}A total of {c}{f}{t} fiat is stuck in the shadowrealm",
+             t = textc, c = pncol(shadowrealm_fiat), f = shadowrealm_fiat);
 
     let mut data_rows = Vec::new();
     for ((name, amount), (_, price)) in amounts.iter().zip(prices.iter()){
@@ -206,9 +213,11 @@ pub fn summary(namebank: &NameBank, ts: &[Trans]){
     data_rows.sort_by(|(_, _, _, _, sa), (_, _, _, _, sb)|
         sb.partial_cmp(sa).unwrap_or(std::cmp::Ordering::Less));
     for (name, amount, worth, price, share) in data_rows{
-        println!("{}: {} worth {} priced {} at {}% of total",
-            name, amount, worth, price, share * 100.0);
+        println!("{nc}{name}{tc}: {ac}{amount}{tc} worth {wc}{worth}{tc} priced {pc}{price}{tc} at {sc}{share}{tc}% of total",
+            tc = textc, nc = namec, name = name, ac = pncol(*amount), amount = amount, wc = pncol(worth), worth = worth,
+            pc = pncol(*price), price = price, sc = fracc, share = share * 100.0);
     }
+    println!("{}---------------", infoc);
 }
 
 pub type Balance = (usize, f32);
