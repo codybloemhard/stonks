@@ -179,6 +179,7 @@ pub fn graph(state: &NameBank, ts: &[Trans], include: &[&str], colours: Vec<Stri
 pub fn summary(namebank: &NameBank, ts: &[Trans]){
     let mut state = State::new(namebank);
     update(ts, &mut state, None, None);
+    let spending = spending(ts, &mut state);
     let accounts = into_named_accounts(state.accounts.into_balances(), namebank);
     let (textc, infoc, namec, posc, negc, fracc) = (UC::Std, UC::Magenta, UC::Blue, UC::Green, UC::Red, UC::Yellow);
     let pncol = |v: f32| if v < 0.0 { negc } else { posc };
@@ -218,6 +219,9 @@ pub fn summary(namebank: &NameBank, ts: &[Trans]){
             pc = pncol(*price), price = price, sc = fracc, share = share * 100.0);
     }
     println!("{}---------------", infoc);
+    println!("{}Metrics", infoc);
+    let past_12m: f32 = spending.iter().rev().take(12).map(|(v, _)| v).sum();
+    println!("{}Spend {}{}{} last year.", textc, pncol(past_12m), past_12m, textc);
 }
 
 pub type Balance = (usize, f32);
@@ -380,6 +384,43 @@ pub fn update(ts: &[Trans], state: &mut State, from: Option<usize>, mut date: Op
         }
     }
     (usize::MAX, date)
+}
+
+pub fn spending(ts: &[Trans], state: &mut State) -> Vec<(f32, (u8, u16))>{
+    let mut res = Vec::new();
+    if ts.is_empty() { return res; }
+    let mut month = ts[0].date.1;
+    let mut year = ts[0].date.2;
+    let mut acc = 0.0;
+    for trans in ts.iter(){
+        if month != trans.date.1 || year != trans.date.2{
+            res.push((acc, (month, year)));
+            month = trans.date.1;
+            year = trans.date.2;
+            acc = 0.0;
+        }
+        match trans.ext{
+            TransExt::Mov { src, dst, amount } => {
+                let spending = src != NULL && state.account_labels[src] != AccountLabel::Debt && dst == NULL;
+                if !spending { continue; }
+                acc += amount;
+            },
+            TransExt::Tra { src, dst, sub, .. } => {
+                let spending = src != NULL && state.account_labels[dst] == AccountLabel::Debt && dst == NULL;
+                if !spending { continue; }
+                acc += sub;
+            },
+            TransExt::Ass { account } => {
+                state.account_labels[account] = AccountLabel::Assets;
+            },
+            TransExt::Deb { account } => {
+                state.account_labels[account] = AccountLabel::Debt;
+            },
+            _ => {  },
+        }
+    }
+    res.push((acc, (month, year)));
+    res
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
