@@ -221,7 +221,50 @@ pub fn summary(namebank: &NameBank, ts: &[Trans]){
     println!("{}---------------", infoc);
     println!("{}Metrics", infoc);
     let past_12m: f32 = spending.iter().rev().take(12).map(|(v, _)| v).sum();
-    println!("{}Spend {}{}{} last year.", textc, pncol(past_12m), past_12m, textc);
+    println!("{}You spent {}{}{} the past year.", textc, pncol(past_12m), past_12m, textc);
+    let net = accounts[NET].1;
+    let time_flat = net / past_12m * 12.0;
+    let moy = |x: f32| if x.abs() > 24.0 { x / 12.0 } else { x }; // months or years
+    let moy_label = |x: f32| if x.abs() > 24.0 { "years" } else { "months" };
+    println!("{}Your net worth is {}{}{} {} (no inflation and roi).",
+        textc, pncol(time_flat), moy(time_flat), textc, moy_label(time_flat));
+
+    let print_time_exp = |inflation_rate: f32, roi_rate: f32|{
+        let inflation = (1.0 + (inflation_rate * 0.01)).powf(1.0 / 12.0);
+        let roi = (1.0 + (roi_rate * 0.01)).powf(1.0 / 12.0);
+        let infc = if inflation > 1.0 { negc } else { posc };
+        let roic = if roi > 1.0 { posc } else { negc };
+        let mut month_cost = past_12m / 12.0;
+        let mut assets = total_holdings_worth - real_fiat;
+        let mut total = total_holdings_worth;
+        let mut months = 0.0;
+        loop{
+            if months >= 1200.0{
+                println!("{}Your assets are worth {}100+{} years ({}% infl., {}% roi.).", textc, posc, textc, inflation_rate, roi_rate);
+                return;
+            }
+            if total > month_cost{
+                total -= month_cost;
+                month_cost *= inflation;
+                months += 1.0;
+                assets = assets.min(total);
+                total -= assets;
+                assets *= roi;
+                total += assets;
+            } else {
+                months += total / month_cost;
+                println!("{}Your assets are worth {}{}{} {} ({}{}{}% infl., {}{}{}% roi.).",
+                    textc, pncol(months), moy(months), textc, moy_label(months), infc, inflation_rate, textc, roic, roi_rate, textc);
+                return;
+            }
+        }
+    };
+
+    print_time_exp(5.0, -5.0);
+    print_time_exp(5.0, 0.0);
+    print_time_exp(5.0, 5.0);
+    print_time_exp(5.0, 6.0);
+    print_time_exp(5.0, 7.0);
 }
 
 pub type Balance = (usize, f32);
