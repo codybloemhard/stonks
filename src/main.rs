@@ -29,16 +29,18 @@ fn main() {
         -p, --palette (default \'\') file to read colours from
         -c, --colours (integer...) lines to get colours from (bg, fg, col0, col1, ...)
         -b, --browser (default firefox) browser to show graph in
+        -r, --redact redact absolute valuations.
         <file> (string) transactional \"database\" file
     ");
     let infile = args.get_string("file");
     let contents = fs::read_to_string(infile).expect("Couldn't read sample.");
     let browser = args.get_string("browser");
+    let redact = args.get_bool("redact");
     let mut namebank = NameBank::new();
     let mut date = Date::default();
     let ts = contents.split('\n').into_iter().map(|line| line.to_string()
         .into_trans(&mut namebank, &mut date)).flatten().collect::<Vec<_>>();
-    summary(&namebank, &ts);
+    summary(&namebank, &ts, redact);
 
     let colours = get_graph_colours(&args);
     let includes = args.get_strings("accounts");
@@ -176,11 +178,12 @@ pub fn graph(state: &NameBank, ts: &[Trans], include: &[&str], colours: Vec<Stri
     Command::new(browser.to_string()).arg("graph.html").output().unwrap_or_else(|_| panic!("Could not open graph in {}!", browser));
 }
 
-pub fn summary(namebank: &NameBank, ts: &[Trans]){
+pub fn summary(namebank: &NameBank, ts: &[Trans], redact: bool){
     let mut state = State::new(namebank);
     update(ts, &mut state, None, None);
     let spending = spending(ts, &mut state);
     let accounts = into_named_accounts(state.accounts.into_balances(), namebank);
+    let pos_sum: f32 = accounts.iter().skip(12).map(|(_, x)| if *x > 0.0 { *x } else { 0.0 }).sum();
     let (textc, infoc, namec, posc, negc, fracc) = (UC::Std, UC::Magenta, UC::Blue, UC::Green, UC::Red, UC::Yellow);
     let pncol = |v: f32| if v < 0.0 { negc } else { posc };
     println!("{}---------------", infoc);
@@ -188,12 +191,14 @@ pub fn summary(namebank: &NameBank, ts: &[Trans]){
     for (name, amount) in &accounts{
         println!("{}{}: {}{}", namec, name, pncol(*amount), amount);
     }
+    println!("{}Positive owned sum: {}{}{}.", textc, posc, pos_sum, textc);
     println!("{}---------------", infoc);
 
     let amounts = into_named_assets(state.asset_amounts.into_balances(), namebank);
     let prices = into_named_assets(state.asset_prices.into_balances(), namebank);
     let it = amounts.iter().zip(prices.iter());
     let total_holdings_worth: f32 = it.fold(0.0, |acc, ((_, a), (_, p))| acc + a * p);
+    let sum_holding_error = pos_sum - total_holdings_worth;
     let real_fiat = amounts[0].1;
     let shadowrealm_fiat = amounts[1].1;
     let fiat_split = real_fiat / total_holdings_worth * 100.0;
@@ -201,6 +206,8 @@ pub fn summary(namebank: &NameBank, ts: &[Trans]){
     println!("{}Total holdings worth: {}{}", textc, posc, total_holdings_worth);
     println!("{t}With a split of {f}{a}{t}% assets and {f}{b}{t}% fiat",
              t = textc, f = fracc, a = 100.0 - fiat_split, b = fiat_split);
+    println!("{t}Positive owned sum / holdings error: {}{}{t}.",
+             pncol(sum_holding_error), sum_holding_error, t = textc);
     println!("{t}A total of {c}{f}{t} fiat is stuck in the shadowrealm",
              t = textc, c = pncol(shadowrealm_fiat), f = shadowrealm_fiat);
 
