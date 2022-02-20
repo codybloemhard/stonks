@@ -34,6 +34,8 @@ pub fn get_graph_colours(args: &lapp::Args) -> Vec<String>{
             colours.push(builder);
         }
     }
+    // Nord theme used
+    // https://www.nordtheme.com/docs/colors-and-paletteshttps://www.nordtheme.com/docs/colors-and-palettes
     let preset = vec!["#2E2440", "#ECEFF4", "#BF616A", "#D08770", "#EBCB8B", "#A3BE8C", "#B48EAD"];
     for (i, colour) in preset.iter().enumerate().take(7){
         if colours.len() < i{
@@ -43,11 +45,9 @@ pub fn get_graph_colours(args: &lapp::Args) -> Vec<String>{
     colours
 }
 
-pub fn graph(state: &NameBank, ts: &[Trans], include: &[&str], colours: Vec<String>, browser: &str){
+pub fn graph(norm_fac: f32, state: &NameBank, ts: &[Trans], include: &[&str], colours: Vec<String>, browser: &str){
     let hist = time_hist(state, ts);
     let mut page = String::new();
-    // Nord theme used
-    // https://www.nordtheme.com/docs/colors-and-paletteshttps://www.nordtheme.com/docs/colors-and-palettes
     let mut carray = String::new();
     carray.push('[');
     for c in colours.iter().skip(2){
@@ -124,7 +124,7 @@ pub fn graph(state: &NameBank, ts: &[Trans], include: &[&str], colours: Vec<Stri
         page.push('[');
         page.push_str(&format_date(mm, yy));
         for ind in &indices{
-            page.push_str(&format!("{},", bs[*ind].1.to_string()));
+            page.push_str(&format!("{},", (bs[*ind].1 / norm_fac).to_string()));
         }
         page.push_str("],\n");
     }

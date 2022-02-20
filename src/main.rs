@@ -26,12 +26,12 @@ fn main() {
     let mut date = Date::default();
     let ts = contents.split('\n').into_iter().map(|line| line.to_string()
         .into_trans(&mut namebank, &mut date)).flatten().collect::<Vec<_>>();
-    summary(&namebank, &ts, redact);
+    let norm_fac = summary(&namebank, &ts, redact);
 
     let colours = get_graph_colours(&args);
     let includes = args.get_strings("accounts");
     if !includes.is_empty(){
-        graph(&namebank, &ts, &includes.iter().map(|s| s.as_str()).collect::<Vec<_>>(), colours, &browser);
+        graph(norm_fac, &namebank, &ts, &includes.iter().map(|s| s.as_str()).collect::<Vec<_>>(), colours, &browser);
     }
 }
 

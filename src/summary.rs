@@ -2,17 +2,18 @@ use crate::core::*;
 
 use term_basics_linux::UC;
 
-pub fn summary(namebank: &NameBank, ts: &[Trans], redact: bool){
+pub fn summary(namebank: &NameBank, ts: &[Trans], redact: bool) -> f32{
     let mut state = State::new(namebank);
     update(ts, &mut state, None, None);
     let spending = spending(ts, &mut state);
     let accounts = into_named_accounts(state.accounts.into_balances(), namebank);
     let pos_sum: f32 = accounts.iter().skip(12).map(|(_, x)| if *x > 0.0 { *x } else { 0.0 }).sum();
+    let norm_fac = if redact { pos_sum } else { 1.0 };
     let (textc, infoc, namec, posc, negc, fracc) = (UC::Std, UC::Magenta, UC::Blue, UC::Green, UC::Red, UC::Yellow);
     let pncol = |v: f32| if v < 0.0 { negc } else { posc };
     println!("{}Accounts:", infoc);
     for (name, amount) in &accounts{
-        let val = if !redact { *amount } else { *amount / pos_sum };
+        let val = *amount / norm_fac;
         println!("{}{}: {}{}", namec, name, pncol(val), val);
     }
     println!("{}Positive owned sum: {}{}", textc, posc, 1.0);
@@ -27,13 +28,13 @@ pub fn summary(namebank: &NameBank, ts: &[Trans], redact: bool){
     let fiat_split = real_fiat / total_holdings_worth * 100.0;
     println!("{}Distribution:", infoc);
     println!("{}Total holdings worth: {}{}",
-             textc, posc, if !redact { total_holdings_worth } else { total_holdings_worth / pos_sum });
+             textc, posc, total_holdings_worth / norm_fac);
     println!("{t}With a split of {f}{a}{t}% assets and {f}{b}{t}% fiat",
              t = textc, f = fracc, a = 100.0 - fiat_split, b = fiat_split);
     println!("{}Positive owned sum / holdings error: {}{}",
-             textc, pncol(sum_holding_error), if !redact { sum_holding_error } else { sum_holding_error / pos_sum });
+             textc, pncol(sum_holding_error), sum_holding_error / norm_fac);
     println!("{t}A total of {c}{f}{t} fiat is stuck in the shadowrealm",
-             t = textc, c = pncol(shadowrealm_fiat), f = if !redact { shadowrealm_fiat } else { shadowrealm_fiat / pos_sum });
+             t = textc, c = pncol(shadowrealm_fiat), f = shadowrealm_fiat / norm_fac);
 
     let mut data_rows = Vec::new();
     for ((name, amount), (_, price)) in amounts.iter().zip(prices.iter()){
@@ -57,7 +58,7 @@ pub fn summary(namebank: &NameBank, ts: &[Trans], redact: bool){
     println!("{}Metrics:", infoc);
     let past_12m: f32 = spending.iter().rev().take(12).map(|(v, _)| v).sum();
     println!("{}You spent {}{}{} the past year.",
-             textc, pncol(past_12m), if !redact { past_12m } else { past_12m / pos_sum }, textc);
+             textc, pncol(past_12m), past_12m / norm_fac, textc);
     let net = accounts[NET].1;
     let time_flat = net / past_12m * 12.0;
     let moy = |x: f32| if x.abs() > 24.0 { x / 12.0 } else { x }; // months or years
@@ -101,4 +102,5 @@ pub fn summary(namebank: &NameBank, ts: &[Trans], redact: bool){
     print_time_exp(5.0, 5.0);
     print_time_exp(5.0, 6.0);
     print_time_exp(5.0, 7.0);
+    norm_fac
 }
