@@ -124,7 +124,7 @@ pub fn graph(norm_fac: f32, state: &NameBank, ts: &[Trans], include: &[&str], co
         page.push('[');
         page.push_str(&format_date(mm, yy));
         for ind in &indices{
-            page.push_str(&format!("{},", (bs[*ind].1 / norm_fac).to_string()));
+            page.push_str(&format!("{},", (bs[*ind].1 / norm_fac)));
         }
         page.push_str("],\n");
     }

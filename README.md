@@ -1,10 +1,14 @@
 # stonks
 Small tool to track personal finance.
 Write important events in a transactional-database-ish like plain text file (see `sample.csv`).
-Everything is meant to be written down in one currency.
-Meant to track worth among accounts not distribution of assets inside accounts.
-Tracks flow(movement of value), net worth(very negative of course), transaction gain and loss and yield(investments).
-Can display simple graph of all your accounts in the browser.
+All account value related values are meant to be written down in one currency.
+Meant to track:
+- Worth of accounts, not distribution of assets within accounts.
+- Distribution of assets of the portfolio as a whole.
+- Statistics such as flow(movement of value), net worth(very negative of course), transaction gain and loss and yield(investments).
+Produces:
+- A summary containing current account values, asset distribution and some lookahead metrics.
+- A graph showing some account values over time.
 ## Usage
 ### General
 To model debt have an account marked as debt and send a positive value to standard build in account `null`.
@@ -44,10 +48,9 @@ Special accounts start with `_` and track some statistics: `_flow`, `_internal_f
   - con,date,asset,amount,asset,amount,tags
   - con,01;01;2021,BTC,1,USDC,60000
 
-Supports moving value(`mov`), transacting value with possible loss or gain(`tra`) and setting the current value(`set`) which is used to track investments gain and loss.
 ### cli
 Example:
-```cargo run ~/git/misc/stonks.csv -a 'Payment,Saving,Crypto,Stonks' -p ~/scripts/Xst -c '1,2,4,5,6,7,8,9'```
+```cargo run ~/git/misc/stonks.csv -g -a 'Payment,Saving,Crypto,Stonks' -p ~/scripts/Xst -c '1,2,4,5,6,7,8,9'```
 
 Will try to read colours in the format `#xxxxxx` on the lines 1,2,4,5,6,7,8,9 of file `~/scripts/Xst` which is a Xresources file with colours for the terminal in my case.
 The first two colours are the background and foreground colour and the colours after that will be used to draw the lines for accounts.
