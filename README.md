@@ -1,22 +1,30 @@
 # stonks
+
 Small tool to track personal finance.
 Write important events in a transactional-database-ish like plain text file (see `sample.csv`).
 All account value related values are meant to be written down in one currency.
+
 Meant to track:
 - Worth of accounts, not distribution of assets within accounts.
 - Distribution of assets of the portfolio as a whole.
 - Statistics such as flow(movement of value), net worth(very negative of course), transaction gain and loss and yield(investments).
+
 Produces:
 - A summary containing current account values, asset distribution and some lookahead metrics.
 - A graph showing some account values over time.
+
 ## Usage
+
 ### General
+
 To model debt have an account marked as debt and send a positive value to standard build in account `null`.
 `null` is not counted as 'yours' and won't show up in networth.
 All other accounts are taken to contribute to your worth.
 Don't use accounts starting with `_`.
 Special accounts start with `_` and track some statistics: `_flow`, `_internal_flow`, `net`, `net_lost`, `net_gained`, `_tra`, `_tra_lost`, `tra_gained`, `_yield`, `_yield_lost`, `_yield_gained`.
+
 ### commands
+
 - `dat`: set date(persistent)
   - dat,date,tags
   - dat,01;01;2021
@@ -49,6 +57,7 @@ Special accounts start with `_` and track some statistics: `_flow`, `_internal_f
   - con,01;01;2021,BTC,1,USDC,60000
 
 ### cli
+
 Example:
 ```cargo run ~/git/misc/stonks.csv -g -a 'Payment,Saving,Crypto,Stonks' -p ~/scripts/Xst -c '1,2,4,5,6,7,8,9'```
 

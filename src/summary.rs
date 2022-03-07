@@ -16,7 +16,7 @@ pub fn summary(namebank: &NameBank, ts: &[Trans], redact: bool) -> f32{
         let val = *amount / norm_fac;
         println!("{}{}: {}{}", namec, name, pncol(val), val);
     }
-    println!("{}Positive owned sum: {}{}", textc, posc, 1.0);
+    println!("{}Positive owned sum: {}{}", textc, posc, if redact { 1.0 } else { pos_sum });
 
     let amounts = into_named_assets(state.asset_amounts.into_balances(), namebank);
     let prices = into_named_assets(state.asset_prices.into_balances(), namebank);

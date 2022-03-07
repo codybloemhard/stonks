@@ -43,7 +43,6 @@ pub fn time_hist(namebank: &NameBank, ts: &[Trans]) -> Vec<((u8, u16), Vec<Balan
     let mut from = 0;
     let mut date = None;
     let mut state = State::new(namebank);
-    let mut i = 0;
     loop{
         let mmyy = (ts[from].date.1, ts[from].date.2);
         let (new_from, new_date) = update(ts, &mut state, Some(from), date);
@@ -53,8 +52,6 @@ pub fn time_hist(namebank: &NameBank, ts: &[Trans]) -> Vec<((u8, u16), Vec<Balan
         }
         from = new_from;
         date = new_date;
-        i += 1;
-        if i > 10 { break; }
     }
     hist
 }
