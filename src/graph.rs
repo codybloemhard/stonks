@@ -45,7 +45,8 @@ pub fn get_graph_colours(args: &lapp::Args) -> Vec<String>{
     colours
 }
 
-pub fn graph(norm_fac: f32, state: &NameBank, ts: &[Trans], include: &[&str], colours: Vec<String>, browser: &str){
+#[allow(clippy::too_many_arguments)]
+pub fn graph(norm_fac: f32, state: &NameBank, ts: &[Trans], include: &[&str], colours: Vec<String>, browser: &str, year_digits: u16, use_month_names: bool){
     let hist = time_hist(state, ts);
     let mut page = String::new();
     let mut carray = String::new();
@@ -104,22 +105,27 @@ pub fn graph(norm_fac: f32, state: &NameBank, ts: &[Trans], include: &[&str], co
     page.push_str("],\n");
     for ((mm, yy), bs) in hist.into_iter(){
         let format_date = |mm, yy| {
-            let m = match mm{
-                1 => "Jan",
-                2 => "Feb",
-                3 => "Mar",
-                4 => "Apr",
-                5 => "May",
-                6 => "Jun",
-                7 => "Jul",
-                8 => "Aug",
-                9 => "Sep",
-                10 => "Oct",
-                11 => "Nov",
-                12 => "Dec",
-                _ => "AAA"
+            let m = if use_month_names{
+                match mm{
+                    1 => "Jan",
+                    2 => "Feb",
+                    3 => "Mar",
+                    4 => "Apr",
+                    5 => "May",
+                    6 => "Jun",
+                    7 => "Jul",
+                    8 => "Aug",
+                    9 => "Sep",
+                    10 => "Oct",
+                    11 => "Nov",
+                    12 => "Dec",
+                    _ => "AAA"
+                }.to_string()
+            } else {
+                format!("{}", mm)
             };
-            format!("\'{} {}\',", m, yy)
+            let y = format!("{}", yy).chars().rev().take(year_digits as usize).collect::<String>().chars().rev().collect::<String>();
+            format!("\'{} {}\',", m, y)
         };
         page.push('[');
         page.push_str(&format_date(mm, yy));

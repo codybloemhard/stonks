@@ -17,6 +17,8 @@ fn main() {
         -p, --palette (default \'\') file to read colours from
         -c, --colours (integer...) lines to get colours from (bg, fg, col0, col1, ...)
         -b, --browser (default firefox) browser to show graph in
+        --date-year-digits (default 4) how many digits to display a date's year with: [0,1,2,3,4]
+        --date-month-digit use a digit instead of a 3 letter name for a date's month
         <file> (string) transactional \"database\" file
     ");
     let infile = args.get_string("file");
@@ -24,6 +26,8 @@ fn main() {
     let draw_graph = args.get_bool("graph");
     let contents = fs::read_to_string(infile).expect("Couldn't read sample.");
     let browser = args.get_string("browser");
+    let year_digits = args.get_integer("date-year-digits").min(4).max(0) as u16;
+    let use_month_name = !args.get_bool("date-month-digit");
     let mut namebank = NameBank::new();
     let mut date = Date::default();
     let ts = contents.split('\n').into_iter().map(|line| line.to_string()
@@ -34,7 +38,8 @@ fn main() {
         let colours = get_graph_colours(&args);
         let includes = args.get_strings("accounts");
         if !includes.is_empty(){
-            graph(norm_fac, &namebank, &ts, &includes.iter().map(|s| s.as_str()).collect::<Vec<_>>(), colours, &browser);
+            let includes = includes.iter().map(|s| s.as_str()).collect::<Vec<_>>();
+            graph(norm_fac, &namebank, &ts, &includes, colours, &browser, year_digits, use_month_name);
         }
     }
 }
