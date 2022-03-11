@@ -9,6 +9,11 @@ pub fn summary(namebank: &NameBank, ts: &[Trans], redact: bool) -> f32{
     let accounts = into_named_accounts(state.accounts.into_balances(), namebank);
     let pos_sum: f32 = accounts.iter().skip(12).map(|(_, x)| if *x > 0.0 { *x } else { 0.0 }).sum();
     let norm_fac = if redact { pos_sum } else { 1.0 };
+    let amounts = into_named_assets(state.asset_amounts.into_balances(), namebank);
+    let prices = into_named_assets(state.asset_prices.into_balances(), namebank);
+    let it = amounts.iter().zip(prices.iter());
+    let total_holdings_worth: f32 = it.fold(0.0, |acc, ((_, a), (_, p))| acc + a * p);
+
     let (textc, infoc, namec, posc, negc, fracc) = (UC::Std, UC::Magenta, UC::Blue, UC::Green, UC::Red, UC::Yellow);
     let pncol = |v: f32| if v < 0.0 { negc } else { posc };
     println!("{}Accounts:", infoc);
@@ -17,18 +22,14 @@ pub fn summary(namebank: &NameBank, ts: &[Trans], redact: bool) -> f32{
         println!("{}{}: {}{}", namec, name, pncol(val), val);
     }
     println!("{}Positive owned sum: {}{}", textc, posc, if redact { 1.0 } else { pos_sum });
+    println!("{}Total holdings worth: {}{}",
+             textc, posc, total_holdings_worth / norm_fac);
 
-    let amounts = into_named_assets(state.asset_amounts.into_balances(), namebank);
-    let prices = into_named_assets(state.asset_prices.into_balances(), namebank);
-    let it = amounts.iter().zip(prices.iter());
-    let total_holdings_worth: f32 = it.fold(0.0, |acc, ((_, a), (_, p))| acc + a * p);
     let sum_holding_error = pos_sum - total_holdings_worth;
     let real_fiat = amounts[0].1;
     let shadowrealm_fiat = amounts[1].1;
     let fiat_split = real_fiat / total_holdings_worth * 100.0;
     println!("{}Distribution:", infoc);
-    println!("{}Total holdings worth: {}{}",
-             textc, posc, total_holdings_worth / norm_fac);
     println!("{t}With a split of {f}{a}{t}% assets and {f}{b}{t}% fiat",
              t = textc, f = fracc, a = 100.0 - fiat_split, b = fiat_split);
     println!("{}Positive owned sum / holdings error: {}{}",
