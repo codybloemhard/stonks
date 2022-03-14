@@ -13,6 +13,9 @@ pub fn summary(namebank: &NameBank, ts: &[Trans], redact: bool) -> f32{
     let prices = into_named_assets(state.asset_prices.into_balances(), namebank);
     let it = amounts.iter().zip(prices.iter());
     let total_holdings_worth: f32 = it.fold(0.0, |acc, ((_, a), (_, p))| acc + a * p);
+    let min_sum = pos_sum.min(total_holdings_worth);
+    let net = accounts[NET].1;
+    let debt = net - min_sum;
 
     let (textc, infoc, namec, posc, negc, fracc) = (UC::Std, UC::Magenta, UC::Blue, UC::Green, UC::Red, UC::Yellow);
     let pncol = |v: f32| if v < 0.0 { negc } else { posc };
@@ -21,6 +24,7 @@ pub fn summary(namebank: &NameBank, ts: &[Trans], redact: bool) -> f32{
         let val = *amount / norm_fac;
         println!("{}{}: {}{}", namec, name, pncol(val), val);
     }
+    println!("{}Debt: {}{}{}.", textc, pncol(debt), debt, textc);
     println!("{}Positive owned sum: {}{}", textc, posc, if redact { 1.0 } else { pos_sum });
     println!("{}Total holdings worth: {}{}",
              textc, posc, total_holdings_worth / norm_fac);
@@ -29,13 +33,13 @@ pub fn summary(namebank: &NameBank, ts: &[Trans], redact: bool) -> f32{
     let real_fiat = amounts[0].1;
     let shadowrealm_fiat = amounts[1].1;
     let fiat_split = real_fiat / total_holdings_worth * 100.0;
+    println!("{}Positive owned sum / holdings error: {}{}{} which is {}{}{}%.",
+             textc, pncol(sum_holding_error), sum_holding_error / norm_fac, textc, posc, sum_holding_error.abs() / min_sum * 100.0, textc);
+    println!("{t}A total of {c}{f}{t} fiat is stuck in the shadowrealm",
+             t = textc, c = pncol(shadowrealm_fiat), f = shadowrealm_fiat / norm_fac);
     println!("{}Distribution:", infoc);
     println!("{t}With a split of {f}{a}{t}% assets and {f}{b}{t}% fiat",
              t = textc, f = fracc, a = 100.0 - fiat_split, b = fiat_split);
-    println!("{}Positive owned sum / holdings error: {}{}",
-             textc, pncol(sum_holding_error), sum_holding_error / norm_fac);
-    println!("{t}A total of {c}{f}{t} fiat is stuck in the shadowrealm",
-             t = textc, c = pncol(shadowrealm_fiat), f = shadowrealm_fiat / norm_fac);
 
     let mut data_rows = Vec::new();
     for ((name, amount), (_, price)) in amounts.iter().zip(prices.iter()){
@@ -60,7 +64,6 @@ pub fn summary(namebank: &NameBank, ts: &[Trans], redact: bool) -> f32{
     let past_12m: f32 = spending.iter().rev().take(12).map(|(v, _)| v).sum();
     println!("{}You spent {}{}{} the past year.",
              textc, pncol(past_12m), past_12m / norm_fac, textc);
-    let net = accounts[NET].1;
     let time_flat = net / past_12m * 12.0;
     let moy = |x: f32| if x.abs() > 24.0 { x / 12.0 } else { x }; // months or years
     let moy_label = |x: f32| if x.abs() > 24.0 { "years" } else { "months" };
@@ -73,8 +76,8 @@ pub fn summary(namebank: &NameBank, ts: &[Trans], redact: bool) -> f32{
         let infc = if inflation > 1.0 { negc } else { posc };
         let roic = if roi > 1.0 { posc } else { negc };
         let mut month_cost = past_12m / 12.0;
-        let mut assets = pos_sum - real_fiat;
-        let mut total = pos_sum;
+        let mut assets = min_sum - real_fiat;
+        let mut total = min_sum;
         let mut months = 0.0;
         loop{
             if months >= 1200.0{
