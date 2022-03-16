@@ -2,7 +2,7 @@ use crate::core::*;
 
 use term_basics_linux::UC;
 
-pub fn summary(namebank: &NameBank, ts: &[Trans], redact: bool) -> f32{
+pub fn summary(namebank: &NameBank, ts: &[Trans], redact: bool, includes: &[String]) -> f32{
     let mut state = State::new(namebank);
     update(ts, &mut state, None, None);
     let spending = spending(ts, &mut state);
@@ -16,30 +16,37 @@ pub fn summary(namebank: &NameBank, ts: &[Trans], redact: bool) -> f32{
     let min_sum = pos_sum.min(total_holdings_worth);
     let net = accounts[NET].1;
     let debt = net - min_sum;
-
-    let (textc, infoc, namec, posc, negc, fracc) = (UC::Std, UC::Magenta, UC::Blue, UC::Green, UC::Red, UC::Yellow);
-    let pncol = |v: f32| if v < 0.0 { negc } else { posc };
-    println!("{}Accounts:", infoc);
-    for (name, amount) in &accounts{
-        let val = *amount / norm_fac;
-        println!("{}{}: {}{}", namec, name, pncol(val), val);
-    }
-    println!("{}Debt: {}{}{}.", textc, pncol(debt), debt, textc);
-    println!("{}Positive owned sum: {}{}", textc, posc, if redact { 1.0 } else { pos_sum });
-    println!("{}Total holdings worth: {}{}",
-             textc, posc, total_holdings_worth / norm_fac);
-
+    let r#yield = accounts[YIELD].1;
     let sum_holding_error = pos_sum - total_holdings_worth;
     let real_fiat = amounts[0].1;
     let shadowrealm_fiat = amounts[1].1;
     let fiat_split = real_fiat / total_holdings_worth * 100.0;
+
+    let (textc, infoc, namec, posc, negc, fracc) = (UC::Std, UC::Magenta, UC::Blue, UC::Green, UC::Red, UC::Yellow);
+    let pncol = |v: f32| if v < 0.0 { negc } else { posc };
+    println!("{}General:", infoc);
+    println!("{}Net: {}{}{}.", textc, pncol(net), net, textc);
+    println!("{}Debt: {}{}{}.", textc, pncol(debt), debt, textc);
+    println!("{}Yield: {}{}{}.", textc, pncol(r#yield), r#yield, textc);
+    println!("{}Positive owned sum: {}{}", textc, posc, if redact { 1.0 } else { pos_sum });
+    println!("{}Total holdings worth: {}{}",
+             textc, posc, total_holdings_worth / norm_fac);
     println!("{}Positive owned sum / holdings error: {}{}{} which is {}{}{}%.",
              textc, pncol(sum_holding_error), sum_holding_error / norm_fac, textc, posc, sum_holding_error.abs() / min_sum * 100.0, textc);
-    println!("{t}A total of {c}{f}{t} fiat is stuck in the shadowrealm",
-             t = textc, c = pncol(shadowrealm_fiat), f = shadowrealm_fiat / norm_fac);
+
+    println!("{}Accounts:", infoc);
+    let include_not_everything = !includes.is_empty();
+    for (name, amount) in &accounts{
+        if include_not_everything && !includes.contains(name){ continue; }
+        let val = *amount / norm_fac;
+        println!("{}{}: {}{}", namec, name, pncol(val), val);
+    }
+
     println!("{}Distribution:", infoc);
     println!("{t}With a split of {f}{a}{t}% assets and {f}{b}{t}% fiat",
              t = textc, f = fracc, a = 100.0 - fiat_split, b = fiat_split);
+    println!("{t}A total of {c}{f}{t} fiat is stuck in the shadowrealm",
+             t = textc, c = pncol(shadowrealm_fiat), f = shadowrealm_fiat / norm_fac);
 
     let mut data_rows = Vec::new();
     for ((name, amount), (_, price)) in amounts.iter().zip(prices.iter()){
