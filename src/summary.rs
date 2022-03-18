@@ -4,7 +4,7 @@ use term_basics_linux::UC;
 
 pub fn summary(namebank: &NameBank, ts: &[Trans], redact: bool, includes: &[String]) -> f32{
     let mut state = State::new(namebank);
-    update(ts, &mut state, None, None);
+    let _hist = hist(&mut state, ts);
     let spending = spending(ts, &mut state);
     let accounts = into_named_accounts(state.accounts.into_balances(), namebank);
     let pos_sum: f32 = accounts.iter().skip(12).map(|(_, x)| if *x > 0.0 { *x } else { 0.0 }).sum();

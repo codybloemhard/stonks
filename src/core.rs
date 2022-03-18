@@ -38,37 +38,51 @@ pub fn into_named_assets(bs: Vec<Balance>, state: &NameBank) -> Vec<NamedBalance
     bs.into_iter().map(|(id, val)| (state.asset_name(id), val)).collect::<Vec<_>>()
 }
 
-pub fn time_hist(namebank: &NameBank, ts: &[Trans]) -> Vec<((u8, u16), Vec<Balance>)>{
+pub fn hist(state: &mut State, ts: &[Trans]) -> (Vec<Vec<f32>>, (u8, u16)){
     let mut hist = Vec::new();
+    if ts.is_empty() { return (hist, (0, 0)); }
     let mut from = 0;
-    let mut date = None;
-    let mut state = State::new(namebank);
+    let mut date = (ts[0].date.1, ts[0].date.2);
+    let start_date = date;
+    let mut prev_frame = Vec::new();
     loop{
-        let mmyy = (ts[from].date.1, ts[from].date.2);
-        let (new_from, new_date) = update(ts, &mut state, Some(from), date);
-        hist.push((mmyy, state.accounts.clone().into_balances()));
+        let (new_from, new_date) = update(ts, state, Some(from), Some(date));
+        // we have a frame for every month, fill in months the data skips
+        while (new_date.0 < date.0 + 1 && new_date.1 <= date.1)
+                && !(new_date.0 == 1 && new_date.1 == date.1 + 1)
+                && (new_date != date){
+            hist.push(prev_frame.clone());
+            date = if date.0 == 12{
+                (1, date.1 + 1)
+            } else {
+                (date.0 + 1, date.1)
+            };
+        }
+        let frame = state.accounts.clone();
+        hist.push(frame.clone());
         if new_from >= ts.len(){
             break;
         }
         from = new_from;
         date = new_date;
+        prev_frame = frame;
     }
-    hist
+    (hist, start_date)
 }
 
-pub fn update(ts: &[Trans], state: &mut State, from: Option<usize>, mut date: Option<(u8, u16)>) -> (usize, Option<(u8, u16)>){
+pub fn update(ts: &[Trans], state: &mut State, from: Option<usize>, from_date: Option<(u8, u16)>) -> (usize, (u8, u16)){
     let skip = if let Some(skip) = from { skip } else { 0 };
     let all = from.is_none();
+    let mut date = from_date.unwrap_or((0, 0));
     for (i, trans) in ts.iter().skip(skip).enumerate(){
-        if let Some((m,y)) = date{
-            if !all && (trans.date.1 != m || trans.date.2 != y){
-                let next = skip + i;
-                date = Some((trans.date.1, trans.date.2));
-                return (next, date);
-            }
+        if !all && (trans.date.1 != date.0 || trans.date.2 != date.1){
+            let next = skip + i;
+            let date = (trans.date.1, trans.date.2);
+            return (next, date);
         } else {
-            date = Some((trans.date.1, trans.date.2));
+            date = (trans.date.1, trans.date.2);
         }
+
         match trans.ext{
             TransExt::Set { amount, dst } => {
                 let diff = amount - state.accounts[dst];

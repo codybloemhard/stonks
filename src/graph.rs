@@ -46,8 +46,10 @@ pub fn get_graph_colours(args: &lapp::Args) -> Vec<String>{
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn graph(norm_fac: f32, state: &NameBank, ts: &[Trans], include: &[&str], colours: Vec<String>, browser: &str, year_digits: u16, use_month_names: bool){
-    let hist = time_hist(state, ts);
+pub fn graph(norm_fac: f32, nb: &NameBank, ts: &[Trans], include: &[&str], colours: Vec<String>, browser: &str, year_digits: u16, use_month_names: bool){
+    let mut state = State::new(nb);
+    let (hist, start_date) = hist(&mut state, ts);
+    //println!("{:#?}", hist);
     let mut page = String::new();
     let mut carray = String::new();
     carray.push('[');
@@ -95,15 +97,16 @@ pub fn graph(norm_fac: f32, state: &NameBank, ts: &[Trans], include: &[&str], co
     page.push('[');
     page.push_str("\'Date\',");
     let mut indices = Vec::new();
-    (0..state.next_account_id()).into_iter().for_each(|id| {
-        let name = state.account_name(id);
+    (0..nb.next_account_id()).into_iter().for_each(|id| {
+        let name = nb.account_name(id);
         if include.contains(&&name[..]){
             page.push_str(&format!("\'{}\',", name));
             indices.push(id);
         }
     });
     page.push_str("],\n");
-    for ((mm, yy), bs) in hist.into_iter(){
+    let mut date = start_date;
+    for bs in hist.into_iter(){
         let format_date = |mm, yy| {
             let m = if use_month_names{
                 match mm{
@@ -128,9 +131,14 @@ pub fn graph(norm_fac: f32, state: &NameBank, ts: &[Trans], include: &[&str], co
             format!("\'{} {}\',", m, y)
         };
         page.push('[');
-        page.push_str(&format_date(mm, yy));
+        page.push_str(&format_date(date.0, date.1));
+        date = if date.0 == 12{
+            (1, date.1 + 1)
+        } else {
+            (date.0 + 1, date.1)
+        };
         for ind in &indices{
-            page.push_str(&format!("{},", (bs[*ind].1 / norm_fac)));
+            page.push_str(&format!("{},", (bs[*ind] / norm_fac)));
         }
         page.push_str("],\n");
     }
