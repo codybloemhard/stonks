@@ -82,12 +82,15 @@ pub fn update(ts: &[Trans], state: &mut State, from: Option<usize>, from_date: O
     let all = from.is_none();
     let mut date = from_date.unwrap_or((0, 0));
     let mut spending_acc = 0.0;
+    let mut receiving_acc = 0.0;
     for (i, trans) in ts.iter().skip(skip).enumerate(){
         if !all && (trans.date.1 != date.0 || trans.date.2 != date.1){
             let next = skip + i;
             let date = (trans.date.1, trans.date.2);
             state.accounts[SPENDING_MONTH] = spending_acc;
             state.accounts[SPENDING_CUMULATIVE] += spending_acc;
+            state.accounts[RECEIVING_MONTH] = receiving_acc;
+            state.accounts[RECEIVING_CUMULATIVE] += receiving_acc;
             return (next, date);
         } else {
             date = (trans.date.1, trans.date.2);
@@ -124,6 +127,9 @@ pub fn update(ts: &[Trans], state: &mut State, from: Option<usize>, from_date: O
                 } else if src == NULL && dst != NULL{
                     state.accounts[NET] += amount;
                     state.accounts[NET_POS] += amount;
+                    if state.account_labels[dst] != AccountLabel::Debt{
+                        receiving_acc += amount;
+                    }
                 }
                 let srcl = state.account_labels[src];
                 let dstl = state.account_labels[dst];
@@ -157,12 +163,15 @@ pub fn update(ts: &[Trans], state: &mut State, from: Option<usize>, from_date: O
                 } else if src != NULL && dst == NULL{
                     state.accounts[NET] -= sub;
                     state.accounts[NET_NEG] += sub;
-                    if state.account_labels[dst] == AccountLabel::Debt{
+                    if state.account_labels[src] != AccountLabel::Debt{
                         spending_acc += sub;
                     }
                 } else if src == NULL && dst != NULL{
                     state.accounts[NET] += add;
                     state.accounts[NET_POS] += add;
+                    if state.account_labels[dst] != AccountLabel::Debt{
+                        receiving_acc += sub;
+                    }
                 }
                 let srcl = state.account_labels[src];
                 let dstl = state.account_labels[dst];

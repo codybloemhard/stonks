@@ -18,6 +18,9 @@ pub fn summary(namebank: &NameBank, state: &State, hist: &[Vec<f32>], redact: bo
     let real_fiat = amounts[0].1;
     let shadowrealm_fiat = amounts[1].1;
     let fiat_split = real_fiat / total_holdings_worth * 100.0;
+    let spend_past_12m: f32 = hist.iter().rev().take(12).map(|frame| frame[SPENDING_MONTH]).sum();
+    let receive_past_12m: f32 = hist.iter().rev().take(12).map(|frame| frame[RECEIVING_MONTH]).sum();
+    let saving_rate_past_12m = (receive_past_12m - spend_past_12m) / receive_past_12m * 100.0;
 
     let (textc, infoc, namec, posc, negc, fracc) = (UC::Std, UC::Magenta, UC::Blue, UC::Green, UC::Red, UC::Yellow);
     let pncol = |v: f32| if v < 0.0 { negc } else { posc };
@@ -30,6 +33,12 @@ pub fn summary(namebank: &NameBank, state: &State, hist: &[Vec<f32>], redact: bo
              textc, posc, total_holdings_worth / norm_fac);
     println!("{}Positive owned sum / holdings error: {}{}{} which is {}{}{}%.",
              textc, pncol(sum_holding_error), sum_holding_error / norm_fac, textc, posc, sum_holding_error.abs() / min_sum * 100.0, textc);
+    println!("{}You spent {}{}{} the past year.",
+             textc, pncol(spend_past_12m), spend_past_12m / norm_fac, textc);
+    println!("{}You received {}{}{} the past year.",
+             textc, pncol(receive_past_12m), receive_past_12m / norm_fac, textc);
+    println!("{}Your saving rate is {}{}{}% the past year.",
+             textc, pncol(saving_rate_past_12m), saving_rate_past_12m, textc);
 
     println!("{}Accounts:", infoc);
     let include_not_everything = !includes.is_empty();
@@ -65,10 +74,7 @@ pub fn summary(namebank: &NameBank, state: &State, hist: &[Vec<f32>], redact: bo
         }
     }
     println!("{}Metrics:", infoc);
-    let past_12m: f32 = hist.iter().rev().take(12).map(|frame| frame[SPENDING_MONTH]).sum();
-    println!("{}You spent {}{}{} the past year.",
-             textc, pncol(past_12m), past_12m / norm_fac, textc);
-    let time_flat = net / past_12m * 12.0;
+    let time_flat = net / spend_past_12m * 12.0;
     let moy = |x: f32| if x.abs() > 24.0 { x / 12.0 } else { x }; // months or years
     let moy_label = |x: f32| if x.abs() > 24.0 { "years" } else { "months" };
     println!("{}Your net worth is {}{}{} {} (no Inflation and ROI)",
@@ -79,7 +85,7 @@ pub fn summary(namebank: &NameBank, state: &State, hist: &[Vec<f32>], redact: bo
         let roi = (1.0 + (roi_rate * 0.01)).powf(1.0 / 12.0);
         let infc = if inflation > 1.0 { negc } else { posc };
         let roic = if roi > 1.0 { posc } else { negc };
-        let mut month_cost = past_12m / 12.0;
+        let mut month_cost = spend_past_12m / 12.0;
         let mut assets = min_sum - real_fiat;
         let mut total = min_sum;
         let mut months = 0.0;
