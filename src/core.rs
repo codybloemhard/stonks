@@ -24,28 +24,19 @@ pub const RECEIVING_CUMULATIVE: usize = 15;
 
 pub const NR_BUILDIN_ACCOUNTS: usize = 16;
 
-pub type Balance = (usize, f32);
 pub type NamedBalance = (String, f32);
 
-pub trait IntoBalances{
-    fn into_balances(&self) -> Vec<Balance>;
+pub fn into_named_accounts(bs: &[f32], state: &NameBank) -> Vec<NamedBalance>{
+    bs.iter().copied().enumerate().map(|(id, val)| (state.account_name(id), val)).collect::<Vec<_>>()
 }
 
-impl IntoBalances for Vec<f32>{
-    fn into_balances(&self) -> Vec<Balance>{
-        self.iter().copied().enumerate().collect::<Vec<_>>()
-    }
+pub fn into_named_assets(bs: &[f32], state: &NameBank) -> Vec<NamedBalance>{
+    bs.iter().copied().enumerate().map(|(id, val)| (state.asset_name(id), val)).collect::<Vec<_>>()
 }
 
-pub fn into_named_accounts(bs: Vec<Balance>, state: &NameBank) -> Vec<NamedBalance>{
-    bs.into_iter().map(|(id, val)| (state.account_name(id), val)).collect::<Vec<_>>()
-}
+pub type MonthDate = (u8, u16);
 
-pub fn into_named_assets(bs: Vec<Balance>, state: &NameBank) -> Vec<NamedBalance>{
-    bs.into_iter().map(|(id, val)| (state.asset_name(id), val)).collect::<Vec<_>>()
-}
-
-pub fn hist(state: &mut State, ts: &[Trans]) -> (Vec<Vec<f32>>, (u8, u16)){
+pub fn hist(state: &mut State, ts: &[Trans]) -> (Vec<Vec<f32>>, MonthDate){
     let mut hist = Vec::new();
     if ts.is_empty() { return (hist, (0, 0)); }
     let mut from = 0;
@@ -77,7 +68,7 @@ pub fn hist(state: &mut State, ts: &[Trans]) -> (Vec<Vec<f32>>, (u8, u16)){
     (hist, start_date)
 }
 
-pub fn update(ts: &[Trans], state: &mut State, from: Option<usize>, from_date: Option<(u8, u16)>) -> (usize, (u8, u16)){
+pub fn update(ts: &[Trans], state: &mut State, from: Option<usize>, from_date: Option<MonthDate>) -> (usize, MonthDate){
     let skip = if let Some(skip) = from { skip } else { 0 };
     let all = from.is_none();
     let mut date = from_date.unwrap_or((0, 0));

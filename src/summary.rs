@@ -3,14 +3,14 @@ use crate::core::*;
 use term_basics_linux::UC;
 
 pub fn summary(namebank: &NameBank, state: &State, hist: &[Vec<f32>], redact: bool, includes: &[String]) -> f32{
-    let accounts = into_named_accounts(state.accounts.into_balances(), namebank);
-    let pos_sum: f32 = accounts.iter().skip(NR_BUILDIN_ACCOUNTS).map(|(_, x)| if *x > 0.0 { *x } else { 0.0 }).sum();
-    let norm_fac = if redact { pos_sum } else { 1.0 };
-    let amounts = into_named_assets(state.asset_amounts.into_balances(), namebank);
-    let prices = into_named_assets(state.asset_prices.into_balances(), namebank);
+    let accounts = into_named_accounts(&state.accounts, namebank);
+    let amounts = into_named_assets(&state.asset_amounts, namebank);
+    let prices = into_named_assets(&state.asset_prices, namebank);
     let it = amounts.iter().zip(prices.iter());
+    let pos_sum: f32 = accounts.iter().skip(NR_BUILDIN_ACCOUNTS).map(|(_, x)| if *x > 0.0 { *x } else { 0.0 }).sum();
     let total_holdings_worth: f32 = it.fold(0.0, |acc, ((_, a), (_, p))| acc + a * p);
     let min_sum = pos_sum.min(total_holdings_worth);
+    let norm_fac = if redact { min_sum } else { 1.0 };
     let net = accounts[NET].1;
     let debt = net - min_sum;
     let r#yield = accounts[YIELD].1;
@@ -25,9 +25,9 @@ pub fn summary(namebank: &NameBank, state: &State, hist: &[Vec<f32>], redact: bo
     let (textc, infoc, namec, posc, negc, fracc) = (UC::Std, UC::Magenta, UC::Blue, UC::Green, UC::Red, UC::Yellow);
     let pncol = |v: f32| if v < 0.0 { negc } else { posc };
     println!("{}General:", infoc);
-    println!("{}Net: {}{}{}.", textc, pncol(net), net, textc);
-    println!("{}Debt: {}{}{}.", textc, pncol(debt), debt, textc);
-    println!("{}Yield: {}{}{}.", textc, pncol(r#yield), r#yield, textc);
+    println!("{}Net: {}{}{}.", textc, pncol(net), net / norm_fac, textc);
+    println!("{}Debt: {}{}{}.", textc, pncol(debt), debt / norm_fac, textc);
+    println!("{}Yield: {}{}{}.", textc, pncol(r#yield), r#yield / norm_fac, textc);
     println!("{}Positive owned sum: {}{}", textc, posc, if redact { 1.0 } else { pos_sum });
     println!("{}Total holdings worth: {}{}",
              textc, posc, total_holdings_worth / norm_fac);
