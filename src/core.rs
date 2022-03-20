@@ -4,6 +4,7 @@ use std::collections::{ HashMap };
 
 pub const REAL_FIAT: usize = 0;
 pub const FIAT: usize = 1;
+
 pub const NULL: usize = 0;
 pub const FLOW: usize = 1;
 pub const INTERNAL_FLOW: usize = 2;
@@ -16,17 +17,23 @@ pub const TRA_POS: usize = 8;
 pub const YIELD: usize = 9;
 pub const YIELD_NEG: usize = 10;
 pub const YIELD_POS: usize = 11;
+pub const SPENDING_MONTH: usize = 12;
+pub const SPENDING_CUMULATIVE: usize = 13;
+pub const RECEIVING_MONTH: usize = 14;
+pub const RECEIVING_CUMULATIVE: usize = 15;
+
+pub const NR_BUILDIN_ACCOUNTS: usize = 16;
 
 pub type Balance = (usize, f32);
 pub type NamedBalance = (String, f32);
 
 pub trait IntoBalances{
-    fn into_balances(self) -> Vec<Balance>;
+    fn into_balances(&self) -> Vec<Balance>;
 }
 
 impl IntoBalances for Vec<f32>{
-    fn into_balances(self) -> Vec<Balance>{
-        self.into_iter().enumerate().collect::<Vec<_>>()
+    fn into_balances(&self) -> Vec<Balance>{
+        self.iter().copied().enumerate().collect::<Vec<_>>()
     }
 }
 
@@ -74,10 +81,13 @@ pub fn update(ts: &[Trans], state: &mut State, from: Option<usize>, from_date: O
     let skip = if let Some(skip) = from { skip } else { 0 };
     let all = from.is_none();
     let mut date = from_date.unwrap_or((0, 0));
+    let mut spending_acc = 0.0;
     for (i, trans) in ts.iter().skip(skip).enumerate(){
         if !all && (trans.date.1 != date.0 || trans.date.2 != date.1){
             let next = skip + i;
             let date = (trans.date.1, trans.date.2);
+            state.accounts[SPENDING_MONTH] = spending_acc;
+            state.accounts[SPENDING_CUMULATIVE] += spending_acc;
             return (next, date);
         } else {
             date = (trans.date.1, trans.date.2);
@@ -108,6 +118,9 @@ pub fn update(ts: &[Trans], state: &mut State, from: Option<usize>, from_date: O
                 } else if src != NULL && dst == NULL{
                     state.accounts[NET] -= amount;
                     state.accounts[NET_NEG] += amount;
+                    if state.account_labels[src] != AccountLabel::Debt{
+                        spending_acc += amount;
+                    }
                 } else if src == NULL && dst != NULL{
                     state.accounts[NET] += amount;
                     state.accounts[NET_POS] += amount;
@@ -144,6 +157,9 @@ pub fn update(ts: &[Trans], state: &mut State, from: Option<usize>, from_date: O
                 } else if src != NULL && dst == NULL{
                     state.accounts[NET] -= sub;
                     state.accounts[NET_NEG] += sub;
+                    if state.account_labels[dst] == AccountLabel::Debt{
+                        spending_acc += sub;
+                    }
                 } else if src == NULL && dst != NULL{
                     state.accounts[NET] += add;
                     state.accounts[NET_POS] += add;
@@ -188,43 +204,6 @@ pub fn update(ts: &[Trans], state: &mut State, from: Option<usize>, from_date: O
         }
     }
     (usize::MAX, date)
-}
-
-pub fn spending(ts: &[Trans], state: &mut State) -> Vec<(f32, (u8, u16))>{
-    let mut res = Vec::new();
-    if ts.is_empty() { return res; }
-    let mut month = ts[0].date.1;
-    let mut year = ts[0].date.2;
-    let mut acc = 0.0;
-    for trans in ts.iter(){
-        if month != trans.date.1 || year != trans.date.2{
-            res.push((acc, (month, year)));
-            month = trans.date.1;
-            year = trans.date.2;
-            acc = 0.0;
-        }
-        match trans.ext{
-            TransExt::Mov { src, dst, amount } => {
-                let spending = src != NULL && state.account_labels[src] != AccountLabel::Debt && dst == NULL;
-                if !spending { continue; }
-                acc += amount;
-            },
-            TransExt::Tra { src, dst, sub, .. } => {
-                let spending = src != NULL && state.account_labels[dst] == AccountLabel::Debt && dst == NULL;
-                if !spending { continue; }
-                acc += sub;
-            },
-            TransExt::Ass { account } => {
-                state.account_labels[account] = AccountLabel::Assets;
-            },
-            TransExt::Deb { account } => {
-                state.account_labels[account] = AccountLabel::Debt;
-            },
-            _ => {  },
-        }
-    }
-    res.push((acc, (month, year)));
-    res
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -316,6 +295,10 @@ impl NameBank{
         self.account_id("_yield".to_owned());
         self.account_id("_yield_lost".to_owned());
         self.account_id("_yield_gained".to_owned());
+        self.account_id("_spending_month".to_owned());
+        self.account_id("_spending_cumulative".to_owned());
+        self.account_id("_receiving_month".to_owned());
+        self.account_id("_receiving_cumulative".to_owned());
         self.asset_id("REAL_FIAT".to_owned());
         self.asset_id("FIAT".to_owned());
         self

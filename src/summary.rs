@@ -2,12 +2,9 @@ use crate::core::*;
 
 use term_basics_linux::UC;
 
-pub fn summary(namebank: &NameBank, ts: &[Trans], redact: bool, includes: &[String]) -> f32{
-    let mut state = State::new(namebank);
-    let _hist = hist(&mut state, ts);
-    let spending = spending(ts, &mut state);
+pub fn summary(namebank: &NameBank, state: &State, hist: &[Vec<f32>], redact: bool, includes: &[String]) -> f32{
     let accounts = into_named_accounts(state.accounts.into_balances(), namebank);
-    let pos_sum: f32 = accounts.iter().skip(12).map(|(_, x)| if *x > 0.0 { *x } else { 0.0 }).sum();
+    let pos_sum: f32 = accounts.iter().skip(NR_BUILDIN_ACCOUNTS).map(|(_, x)| if *x > 0.0 { *x } else { 0.0 }).sum();
     let norm_fac = if redact { pos_sum } else { 1.0 };
     let amounts = into_named_assets(state.asset_amounts.into_balances(), namebank);
     let prices = into_named_assets(state.asset_prices.into_balances(), namebank);
@@ -68,7 +65,7 @@ pub fn summary(namebank: &NameBank, ts: &[Trans], redact: bool, includes: &[Stri
         }
     }
     println!("{}Metrics:", infoc);
-    let past_12m: f32 = spending.iter().rev().take(12).map(|(v, _)| v).sum();
+    let past_12m: f32 = hist.iter().rev().take(12).map(|frame| frame[SPENDING_MONTH]).sum();
     println!("{}You spent {}{}{} the past year.",
              textc, pncol(past_12m), past_12m / norm_fac, textc);
     let time_flat = net / past_12m * 12.0;

@@ -33,7 +33,9 @@ fn main() {
     let mut date = Date::default();
     let ts = contents.split('\n').into_iter().map(|line| line.to_string()
         .into_trans(&mut namebank, &mut date)).flatten().collect::<Vec<_>>();
-    let norm_fac = summary(&namebank, &ts, redact, &args.get_strings("summary-accounts"));
+    let mut state = State::new(&namebank);
+    let (hist, _date) = hist(&mut state, &ts);
+    let norm_fac = summary(&namebank, &state, &hist, redact, &args.get_strings("summary-accounts"));
 
     if draw_graph{
         let colours = get_graph_colours(&args);
