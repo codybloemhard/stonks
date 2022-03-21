@@ -118,9 +118,11 @@ pub fn update(ts: &[Trans], state: &mut State, from: Option<usize>, from_date: O
                 } else if src == NULL && dst != NULL{
                     state.accounts[NET] += amount;
                     state.accounts[NET_POS] += amount;
-                    if state.account_labels[dst] != AccountLabel::Debt{
+                    let init = &mut state.account_initialised[dst];
+                    if state.account_labels[dst] != AccountLabel::Debt && *init{
                         receiving_acc += amount;
                     }
+                    *init = true;
                 }
                 let srcl = state.account_labels[src];
                 let dstl = state.account_labels[dst];
@@ -160,9 +162,11 @@ pub fn update(ts: &[Trans], state: &mut State, from: Option<usize>, from_date: O
                 } else if src == NULL && dst != NULL{
                     state.accounts[NET] += add;
                     state.accounts[NET_POS] += add;
-                    if state.account_labels[dst] != AccountLabel::Debt{
+                    let init = &mut state.account_initialised[dst];
+                    if state.account_labels[dst] != AccountLabel::Debt && *init{
                         receiving_acc += sub;
                     }
+                    *init = true;
                 }
                 let srcl = state.account_labels[src];
                 let dstl = state.account_labels[dst];
@@ -217,6 +221,7 @@ pub enum AccountLabel{
 pub struct State{
     pub accounts: Vec<f32>,
     pub account_labels: Vec<AccountLabel>,
+    pub account_initialised: Vec<bool>,
     pub asset_amounts: Vec<f32>,
     pub asset_prices: Vec<f32>,
 }
@@ -230,6 +235,7 @@ impl State{
         Self{
             accounts: vec![0.0; nb.accounts.next_id],
             account_labels,
+            account_initialised: vec![false; nb.accounts.next_id],
             asset_amounts: vec![0.0; nb.assets.next_id],
             asset_prices,
         }
