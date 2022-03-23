@@ -29,10 +29,28 @@ fn main() {
     let browser = args.get_string("browser");
     let year_digits = args.get_integer("date-year-digits").min(4).max(0) as u16;
     let use_month_name = !args.get_bool("date-month-digit");
+
     let mut namebank = NameBank::new();
     let mut date = Date::default();
-    let ts = contents.split('\n').into_iter().map(|line| line.to_string()
-        .into_trans(&mut namebank, &mut date)).flatten().collect::<Vec<_>>();
+    let ts_res = contents.split('\n').into_iter().map(|line| line.to_string()
+        .into_trans(&mut namebank, &mut date)).enumerate().collect::<Vec<_>>();
+    let mut ts = Vec::new();
+    let mut errs = Vec::new();
+    for (line, tr) in ts_res{
+        match tr {
+            Some(Err(e)) => errs.push((line + 1, e)), // lines start at 1, indices at 0
+            Some(Ok(t)) => ts.push(t),
+            _ => {},
+        }
+    }
+    if !errs.is_empty(){
+        println!("The following errors have been found while parsing:");
+        for (line, err) in errs{
+            println!("  {}:\t{}", line, err);
+        }
+        return;
+    }
+
     let mut state = State::new(&namebank);
     let (hist, _date) = hist(&mut state, &ts);
     let norm_fac = summary(&namebank, &state, &hist, redact, &args.get_strings("summary-accounts"));

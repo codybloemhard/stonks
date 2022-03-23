@@ -401,32 +401,55 @@ pub struct Trans{
     ext: TransExt,
 }
 
+pub type TransRes = Option<Result<Trans, TransErr>>;
+
+#[derive(Debug)]
+pub enum TransErr {
+    UnknownCommand(String),
+    NotEnoughFields,
+    DateFields,
+}
+
+impl std::fmt::Display for TransErr{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result{
+        match self{
+            TransErr::UnknownCommand(cmd) => write!(f, "Unknown command: {}", cmd),
+            TransErr::NotEnoughFields => write!(f, "Not enough fields (comma separated) for any command"),
+            TransErr::DateFields => write!(f, "A date needs 3 fields (day/month/year)"),
+        }
+    }
+}
+
 pub trait IntoTrans{
-    fn into_trans(self, state: &mut NameBank, date: &mut Date) -> Option<Trans>;
+    fn into_trans(self, state: &mut NameBank, date: &mut Date) -> TransRes;
 }
 
 impl IntoTrans for String{
-    fn into_trans(self, nb: &mut NameBank, date: &mut Date) -> Option<Trans>{
+    fn into_trans(self, nb: &mut NameBank, date: &mut Date) -> TransRes{
         if self.is_empty() { return None; }
         if self.starts_with('#') { return None; }
         let splitted = self.split(',').collect::<Vec<_>>();
-        if splitted.len() < 2 { return None; }
-        let parse_date = |string: &str| {
-            let triple = string.split(';').collect::<Vec<_>>();
-            if triple.len() != 3 { return None; }
-            Some((
-                tbl::string_to_value(triple[0])?,
-                tbl::string_to_value(triple[1])?,
-                tbl::string_to_value(triple[2])?,
-            ))
-        };
+        if splitted.len() < 2 { return Some(Err(TransErr::NotEnoughFields)); }
+
+        macro_rules! parse_date{
+            ($output:expr, $string:expr) => {
+                let triple = $string.split('/').collect::<Vec<_>>();
+                if triple.len() != 3 { return Some(Err(TransErr::DateFields)); }
+                $output = (
+                    tbl::string_to_value(triple[0])?,
+                    tbl::string_to_value(triple[1])?,
+                    tbl::string_to_value(triple[2])?,
+                );
+            }
+        }
+
         if splitted[1] != "_"{
-            *date = parse_date(splitted[1])?;
+            parse_date!(*date, splitted[1]);
         }
         let tags_ind;
         let ext = match splitted[0]{
             "dat" => {
-                *date = parse_date(splitted[1])?;
+                parse_date!(*date, splitted[1]);
                 return None;
             },
             "mov" => {
@@ -497,13 +520,13 @@ impl IntoTrans for String{
                     account: nb.account_id(splitted[2].to_string()),
                 }
             },
-            _ => return None,
+            _ => return Some(Err(TransErr::UnknownCommand(splitted[0].to_string()))),
         };
         let tags = splitted.into_iter().skip(tags_ind).map(|raw_tag| nb.tag_id(raw_tag.to_string()))
             .collect::<Vec<_>>();
 
-        Some(Trans{
+        Some(Ok(Trans{
             date: *date, tags, ext
-        })
+        }))
     }
 }

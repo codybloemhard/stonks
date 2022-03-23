@@ -27,7 +27,7 @@ Special accounts start with `_` and track some statistics: `_flow`, `_internal_f
 
 - `dat`: set date(persistent)
   - dat,date,tags
-  - dat,01;01;2021
+  - dat,01/01/2021
 - `deb`: mark account as debt
   - deb,account,tags
   - deb,mortage
@@ -36,25 +36,25 @@ Special accounts start with `_` and track some statistics: `_flow`, `_internal_f
   - ass,broker-account
 - `mov`: move fiat between accounts
   - mov,date,src,dst,amount,tags
-  - mov,01;01;2021,payment,saving,100
+  - mov,01/01/2021,payment,saving,100
 - `tra`: transaction, move fiat between accounts with a transaction cost
   - tra,date,src,dst,subtract,add,tags
-  - tra,01;01;2021,cia0,cia1,1000,985
+  - tra,01/01/2021,cia0,cia1,1000,985
 - `set`: sets the value of investment account, tracking the yield statistics
   - set,date,account,value,tags
-  - set,01;01;2021,exchange,2000
+  - set,01/01/2021,exchange,2000
 - `dec`: declare amount of assets
   - dec,date,asset,amount,tags
-  - dec,01;01;2021,ETH,0.1
+  - dec,01/01/2021,ETH,0.1
 - `pri`: price an asset
   - pri,date,asset,amount,value,tags
-  - pri,01;01;2021,USDC,1000,878
+  - pri,01/01/2021,USDC,1000,878
 - `pin`: pin an asset to a price, declaring you have x asset worth y
   - pin,date,asset,amount,value,tags
-  - pin,01;01;2021,USDC,1000,878
+  - pin,01/01/2021,USDC,1000,878
 - `con`: convert assets
   - con,date,asset,amount,asset,amount,tags
-  - con,01;01;2021,BTC,1,USDC,60000
+  - con,01/01/2021,BTC,1,USDC,60000
 
 ### cli
 

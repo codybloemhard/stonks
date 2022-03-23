@@ -12,3 +12,4 @@ Cargo.lock
 test-redact.sh
 test-temp.sh
 test.sh
+test-graphless.sh
