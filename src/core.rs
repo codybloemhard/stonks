@@ -406,16 +406,18 @@ pub type TransRes = Option<Result<Trans, TransErr>>;
 #[derive(Debug)]
 pub enum TransErr {
     UnknownCommand(String),
-    NotEnoughFields,
+    NotEnoughFields(String),
     DateFields,
+    ParseError(String, String),
 }
 
 impl std::fmt::Display for TransErr{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result{
         match self{
             TransErr::UnknownCommand(cmd) => write!(f, "Unknown command: {}", cmd),
-            TransErr::NotEnoughFields => write!(f, "Not enough fields (comma separated) for any command"),
+            TransErr::NotEnoughFields(field) => write!(f, "Not enough fields (comma separated) for {}", field),
             TransErr::DateFields => write!(f, "A date needs 3 fields (day/month/year)"),
+            TransErr::ParseError(field, wrong) => write!(f, "Could not parse '{}' in field '{}'", wrong, field),
         }
     }
 }
@@ -429,17 +431,36 @@ impl IntoTrans for String{
         if self.is_empty() { return None; }
         if self.starts_with('#') { return None; }
         let splitted = self.split(',').collect::<Vec<_>>();
-        if splitted.len() < 2 { return Some(Err(TransErr::NotEnoughFields)); }
+        if splitted.len() < 2 { return Some(Err(TransErr::NotEnoughFields("any command".to_string()))); }
+
+        macro_rules! parse_field{
+            ($string:expr, $field:expr) => {
+                match tbl::string_to_value($string){
+                    Some(x) => x,
+                    None => return Some(Err(TransErr::ParseError(
+                                $field.to_string(),
+                                $string.to_string()))),
+                }
+            }
+        }
 
         macro_rules! parse_date{
             ($output:expr, $string:expr) => {
                 let triple = $string.split('/').collect::<Vec<_>>();
                 if triple.len() != 3 { return Some(Err(TransErr::DateFields)); }
                 $output = (
-                    tbl::string_to_value(triple[0])?,
-                    tbl::string_to_value(triple[1])?,
-                    tbl::string_to_value(triple[2])?,
+                    parse_field!(triple[0], "day"),
+                    parse_field!(triple[1], "month"),
+                    parse_field!(triple[2], "year"),
                 );
+            }
+        }
+
+        macro_rules! check_fields{
+            ($nr:expr, $field:expr) => {
+                if splitted.len() < $nr{
+                    return Some(Err(TransErr::NotEnoughFields($field.to_string())))
+                }
             }
         }
 
@@ -449,73 +470,83 @@ impl IntoTrans for String{
         let tags_ind;
         let ext = match splitted[0]{
             "dat" => {
+                check_fields!(2, "date");
                 parse_date!(*date, splitted[1]);
                 return None;
             },
             "mov" => {
                 tags_ind = 6;
+                check_fields!(5, "mov");
                 TransExt::Mov{
                     src: nb.account_id(splitted[2].to_string()),
                     dst: nb.account_id(splitted[3].to_string()),
-                    amount: tbl::string_to_value(splitted[4])?,
+                    amount: parse_field!(splitted[4], "amount"),
                 }
             },
             "set" => {
                 tags_ind = 5;
+                check_fields!(4, "set");
                 TransExt::Set{
                     dst: nb.account_id(splitted[2].to_string()),
-                    amount: tbl::string_to_value(splitted[3])?,
+                    amount: parse_field!(splitted[3], "amount"),
                 }
             },
             "tra" => {
                 tags_ind = 7;
+                check_fields!(6, "tra");
                 TransExt::Tra{
                     src: nb.account_id(splitted[2].to_string()),
                     dst: nb.account_id(splitted[3].to_string()),
-                    sub: tbl::string_to_value(splitted[4])?,
-                    add: tbl::string_to_value(splitted[5])?,
+                    sub: parse_field!(splitted[4], "sub"),
+                    add: parse_field!(splitted[5], "add"),
                 }
             },
             "dec" => {
                 tags_ind = 4;
+                check_fields!(4, "dec");
                 TransExt::Dec{
                     asset: nb.asset_id(splitted[2].to_string()),
-                    amount: tbl::string_to_value(splitted[3])?,
+                    amount: parse_field!(splitted[3], "amount"),
                 }
             },
             "pri" => {
                 tags_ind = 5;
+                check_fields!(5, "pri");
                 TransExt::Pri{
                     asset: nb.asset_id(splitted[2].to_string()),
                     amount: tbl::string_to_value(splitted[3])?,
-                    worth: tbl::string_to_value(splitted[4])?,
+                    worth: parse_field!(splitted[4], "worth"),
                 }
             },
             "pin" => {
                 tags_ind = 5;
+                check_fields!(5, "pin");
                 TransExt::Pin{
                     asset: nb.asset_id(splitted[2].to_string()),
                     amount: tbl::string_to_value(splitted[3])?,
-                    worth: tbl::string_to_value(splitted[4])?,
+                    worth: parse_field!(splitted[4], "worth"),
                 }
             },
             "con" => {
                 tags_ind = 6;
+                check_fields!(6, "con");
                 TransExt::Con{
                     src: nb.asset_id(splitted[2].to_string()),
-                    src_amount: tbl::string_to_value(splitted[3])?,
+                    src_amount: parse_field!(splitted[3], "src_amount"),
                     dst: nb.asset_id(splitted[4].to_string()),
-                    dst_amount: tbl::string_to_value(splitted[5])?,
+                    dst_amount: parse_field!(splitted[5], "dst_amount"),
                 }
             },
             "ass" => {
                 tags_ind = 3;
+                check_fields!(3, "ass");
                 TransExt::Ass{
                     account: nb.account_id(splitted[2].to_string()),
                 }
             },
             "deb" => {
                 tags_ind = 3;
+                check_fields!(3, "deb");
                 TransExt::Deb{
                     account: nb.account_id(splitted[2].to_string()),
                 }
