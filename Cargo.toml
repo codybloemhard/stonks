@@ -2,7 +2,7 @@
 name = "stonks"
 version = "2.0.0"
 authors = ["Cody Bloemhard <codybloemhard@gmail.com>"]
-edition = "2021"
+edition = "2018"
 license = "GPL-3.0-only"
 description = "Small tool to track personal finance, transactional database like style."
 repository = "https://github.com/codybloemhard/stonks"
