@@ -7,7 +7,7 @@ All account value related values are meant to be written down in one currency.
 Meant to track:
 - Worth of accounts, not distribution of assets within accounts.
 - Distribution of assets of the portfolio as a whole.
-- Statistics such as flow(movement of value), net worth(very negative of course), transaction gain and loss and yield(investments).
+- Statistics such as flow(movement of value), net worth(very negative of course), transaction gain and loss, yield(investments), receiving and spending.
 
 Produces:
 - A summary containing current account values, asset distribution and some lookahead metrics.

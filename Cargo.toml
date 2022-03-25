@@ -1,8 +1,12 @@
 [package]
 name = "stonks"
-version = "0.1.0"
-authors = ["Cody Bloemhard <cblmhrd@live.nl>"]
-edition = "2018"
+version = "2.0.0"
+authors = ["Cody Bloemhard <codybloemhard@gmail.com>"]
+edition = "2021"
+license = "GPL-3.0-only"
+description = "Small tool to track personal finance, transactional database like style."
+repository = "https://github.com/codybloemhard/stonks"
+readme = "README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
