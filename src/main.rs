@@ -10,7 +10,7 @@ use std::fs;
 
 fn main() {
     let args = lapp::parse_args("
-        Tells you how poor you are.
+        Personal finance tool using a transactional database approach
         -r, --redact redact absolute valuations
         -g, --graph draw draw
         -p, --palette (default \'\') file to read colours from

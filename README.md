@@ -7,7 +7,7 @@ All account value related values are meant to be written down in one currency.
 Meant to track:
 - Worth of accounts, not distribution of assets within accounts.
 - Distribution of assets of the portfolio as a whole.
-- Statistics such as flow(movement of value), net worth(very negative of course), transaction gain and loss, yield(investments), receiving and spending.
+- Statistics such as flow(movement of value), net worth, transaction gain and loss, yield(investments), receiving and spending.
 
 Produces:
 - A summary containing current account values, asset distribution and some lookahead metrics.
@@ -21,7 +21,7 @@ To model debt have an account marked as debt and send a positive value to standa
 `null` is not counted as 'yours' and won't show up in networth.
 All other accounts are taken to contribute to your worth.
 Don't use accounts starting with `_`.
-Special accounts start with `_` and track some statistics: `_flow`, `_internal_flow`, `net`, `net_lost`, `net_gained`, `_tra`, `_tra_lost`, `tra_gained`, `_yield`, `_yield_lost`, `_yield_gained`.
+Special accounts start with `_` and track some statistics: `_flow`, `_internal_flow`, `net`, `net_lost`, `net_gained`, `_tra`, `_tra_lost`, `tra_gained`, `_yield`, `_yield_lost`, `_yield_gained`, `_spending_month`, `_spending_cumulative`, `receiving_month`, `receiving_cumulative`.
 
 ### commands
 
@@ -59,10 +59,25 @@ Special accounts start with `_` and track some statistics: `_flow`, `_internal_f
 ### cli
 
 Example:
-```cargo run ~/git/misc/stonks.csv -g -a 'Payment,Saving,Crypto,Stonks' -p ~/scripts/Xst -c '1,2,4,5,6,7,8,9'```
+```cargo run -- ~/git/misc/stonks.csv -g --summary-accounts 'Payment,Saving,Crypto,Stonks' --graph-accounts '_net,_yield,Payment,Saving,Crypto,Stonks' -p ~/scripts/Xst -c '1,2,4,5,6,7,8,9' --date-year-digits 2```
 
 Will try to read colours in the format `#xxxxxx` on the lines 1,2,4,5,6,7,8,9 of file `~/scripts/Xst` which is a Xresources file with colours for the terminal in my case.
 The first two colours are the background and foreground colour and the colours after that will be used to draw the lines for accounts.
 
 By default it has the theme Nord, the colours will override the theme one by one as you give them.
 Meaning if you give less than 7 of them some of Nord will still be in there.
+
+```
+ stonks --help
+Personal finance tool using a transactional database approach
+-r, --redact redact absolute valuations
+-g, --graph draw draw
+-p, --palette (default '') file to read colours from
+-c, --colours (integer...) lines to get colours from (bg, fg, col0, col1, ...)
+-b, --browser (default firefox) browser to show graph in
+--graph-accounts (string...) accounts to graph
+--summary-accounts (string...) accounts to include in the summary account listing
+--date-year-digits (default 4) how many digits to display a date's year with: [0,1,2,3,4]
+--date-month-digit use a digit instead of a 3 letter name for a date's month
+<file> (string) transactional "database" file
+```
