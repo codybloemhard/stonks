@@ -59,7 +59,8 @@ Special accounts start with `_` and track some statistics: `_flow`, `_internal_f
 ### cli
 
 Example:
-```cargo run -- ~/git/misc/stonks.csv -g \
+```
+cargo run -- ~/git/misc/stonks.csv -g \
     --summary-accounts 'Payment,Saving,Crypto,Stonks' \
     --graph-accounts '_net,_yield,Payment,Saving,Crypto,Stonks' \
     -p ~/scripts/Xst -c '1,2,4,5,6,7,8,9' --date-year-digits 2
