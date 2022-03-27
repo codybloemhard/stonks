@@ -2,7 +2,9 @@ use crate::core::*;
 
 use term_basics_linux::UC;
 
-pub fn summary(namebank: &NameBank, state: &State, hist: &[Vec<f32>], redact: bool, includes: &[String]) -> f32{
+use std::collections::HashMap;
+
+pub fn summary(namebank: &NameBank, state: &State, hist: &[Vec<f32>], redact: bool, redact_map: &HashMap<String, String>, includes: &[String]) -> f32{
     let accounts = into_named_accounts(&state.accounts, namebank);
     let amounts = into_named_assets(&state.asset_amounts, namebank);
     let prices = into_named_assets(&state.asset_prices, namebank);
@@ -45,6 +47,11 @@ pub fn summary(namebank: &NameBank, state: &State, hist: &[Vec<f32>], redact: bo
     for (name, amount) in &accounts{
         if include_not_everything && !includes.contains(name){ continue; }
         let val = *amount / norm_fac;
+        let name = if let Some(redacted) = redact_map.get(name){
+            redacted
+        } else {
+            name
+        };
         println!("{}{}: {}{}", namec, name, pncol(val), val);
     }
 

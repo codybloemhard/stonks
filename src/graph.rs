@@ -4,6 +4,7 @@ use std::process::Command;
 use std::fs;
 use std::fs::File;
 use std::io::prelude::*;
+use std::collections::HashMap;
 
 pub fn get_graph_colours(args: &lapp::Args) -> Vec<String>{
     let mut colours = Vec::new();
@@ -46,10 +47,10 @@ pub fn get_graph_colours(args: &lapp::Args) -> Vec<String>{
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn graph(norm_fac: f32, nb: &NameBank, ts: &[Trans], include: &[&str], colours: Vec<String>, browser: &str, year_digits: u16, use_month_names: bool){
+pub fn graph(norm_fac: f32, nb: &NameBank, ts: &[Trans], include: &[&str], redact_map: &HashMap<String, String>,
+            colours: Vec<String>, browser: &str, year_digits: u16, use_month_names: bool){
     let mut state = State::new(nb);
     let (hist, start_date) = hist(&mut state, ts);
-    //println!("{:#?}", hist);
     let mut page = String::new();
     let mut carray = String::new();
     carray.push('[');
@@ -100,6 +101,11 @@ pub fn graph(norm_fac: f32, nb: &NameBank, ts: &[Trans], include: &[&str], colou
     (0..nb.next_account_id()).into_iter().for_each(|id| {
         let name = nb.account_name(id);
         if include.contains(&&name[..]){
+            let name = if let Some(redacted) = redact_map.get(&name){
+                redacted.to_string()
+            } else {
+                name
+            };
             page.push_str(&format!("\'{}\',", name));
             indices.push(id);
         }

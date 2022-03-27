@@ -59,7 +59,11 @@ Special accounts start with `_` and track some statistics: `_flow`, `_internal_f
 ### cli
 
 Example:
-```cargo run -- ~/git/misc/stonks.csv -g --summary-accounts 'Payment,Saving,Crypto,Stonks' --graph-accounts '_net,_yield,Payment,Saving,Crypto,Stonks' -p ~/scripts/Xst -c '1,2,4,5,6,7,8,9' --date-year-digits 2```
+```cargo run -- ~/git/misc/stonks.csv -g \
+    --summary-accounts 'Payment,Saving,Crypto,Stonks' \
+    --graph-accounts '_net,_yield,Payment,Saving,Crypto,Stonks' \
+    -p ~/scripts/Xst -c '1,2,4,5,6,7,8,9' --date-year-digits 2
+```
 
 Will try to read colours in the format `#xxxxxx` on the lines 1,2,4,5,6,7,8,9 of file `~/scripts/Xst` which is a Xresources file with colours for the terminal in my case.
 The first two colours are the background and foreground colour and the colours after that will be used to draw the lines for accounts.
@@ -77,6 +81,7 @@ Personal finance tool using a transactional database approach
 -b, --browser (default firefox) browser to show graph in
 --graph-accounts (string...) accounts to graph
 --summary-accounts (string...) accounts to include in the summary account listing
+--redact-map (string...) accounts and their redacted name eg. RealName:Stocks0
 --date-year-digits (default 4) how many digits to display a date's year with: [0,1,2,3,4]
 --date-month-digit use a digit instead of a 3 letter name for a date's month
 <file> (string) transactional "database" file
