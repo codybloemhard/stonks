@@ -409,6 +409,8 @@ pub enum TransErr {
     NotEnoughFields(String),
     DateFields,
     ParseError(String, String),
+    FloatError(String, String, String),
+    MultipleFloats(String),
 }
 
 impl std::fmt::Display for TransErr{
@@ -418,6 +420,8 @@ impl std::fmt::Display for TransErr{
             TransErr::NotEnoughFields(field) => write!(f, "Not enough fields (comma separated) for {}", field),
             TransErr::DateFields => write!(f, "A date needs 3 fields (day/month/year)"),
             TransErr::ParseError(field, wrong) => write!(f, "Could not parse '{}' in field '{}'", wrong, field),
+            TransErr::FloatError(field, wrong, error) => write!(f, "Could not parse '{}' in float '{}': {}", wrong, field, error),
+            TransErr::MultipleFloats(field) => write!(f, "Field '{}' returned more than one floating point value", field),
         }
     }
 }
@@ -440,6 +444,22 @@ impl IntoTrans for String{
                     None => return Some(Err(TransErr::ParseError(
                                 $field.to_string(),
                                 $string.to_string()))),
+                }
+            }
+        }
+
+        macro_rules! parse_float{
+            ($string:expr, $field:expr) => {
+                match mexprp::eval::<f64>($string){
+                    Ok(ans) => match ans{
+                        mexprp::Answer::Single(f) => f as f32,
+                        _ => return Some(Err(TransErr::MultipleFloats($field.to_string()))),
+                    },
+                    Err(err) => return Some(Err(TransErr::FloatError(
+                                $field.to_string(),
+                                $string.to_string(),
+                                format!("{}", err)
+                    ))),
                 }
             }
         }
@@ -480,7 +500,7 @@ impl IntoTrans for String{
                 TransExt::Mov{
                     src: nb.account_id(splitted[2].to_string()),
                     dst: nb.account_id(splitted[3].to_string()),
-                    amount: parse_field!(splitted[4], "amount"),
+                    amount: parse_float!(splitted[4], "amount"),
                 }
             },
             "set" => {
@@ -488,7 +508,7 @@ impl IntoTrans for String{
                 check_fields!(4, "set");
                 TransExt::Set{
                     dst: nb.account_id(splitted[2].to_string()),
-                    amount: parse_field!(splitted[3], "amount"),
+                    amount: parse_float!(splitted[3], "amount"),
                 }
             },
             "tra" => {
@@ -497,8 +517,8 @@ impl IntoTrans for String{
                 TransExt::Tra{
                     src: nb.account_id(splitted[2].to_string()),
                     dst: nb.account_id(splitted[3].to_string()),
-                    sub: parse_field!(splitted[4], "sub"),
-                    add: parse_field!(splitted[5], "add"),
+                    sub: parse_float!(splitted[4], "sub"),
+                    add: parse_float!(splitted[5], "add"),
                 }
             },
             "dec" => {
@@ -506,7 +526,7 @@ impl IntoTrans for String{
                 check_fields!(4, "dec");
                 TransExt::Dec{
                     asset: nb.asset_id(splitted[2].to_string()),
-                    amount: parse_field!(splitted[3], "amount"),
+                    amount: parse_float!(splitted[3], "amount"),
                 }
             },
             "pri" => {
@@ -515,7 +535,7 @@ impl IntoTrans for String{
                 TransExt::Pri{
                     asset: nb.asset_id(splitted[2].to_string()),
                     amount: tbl::string_to_value(splitted[3])?,
-                    worth: parse_field!(splitted[4], "worth"),
+                    worth: parse_float!(splitted[4], "worth"),
                 }
             },
             "pin" => {
@@ -524,7 +544,7 @@ impl IntoTrans for String{
                 TransExt::Pin{
                     asset: nb.asset_id(splitted[2].to_string()),
                     amount: tbl::string_to_value(splitted[3])?,
-                    worth: parse_field!(splitted[4], "worth"),
+                    worth: parse_float!(splitted[4], "worth"),
                 }
             },
             "con" => {
@@ -532,9 +552,9 @@ impl IntoTrans for String{
                 check_fields!(6, "con");
                 TransExt::Con{
                     src: nb.asset_id(splitted[2].to_string()),
-                    src_amount: parse_field!(splitted[3], "src_amount"),
+                    src_amount: parse_float!(splitted[3], "src_amount"),
                     dst: nb.asset_id(splitted[4].to_string()),
-                    dst_amount: parse_field!(splitted[5], "dst_amount"),
+                    dst_amount: parse_float!(splitted[5], "dst_amount"),
                 }
             },
             "ass" => {

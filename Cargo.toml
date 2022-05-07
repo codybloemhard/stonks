@@ -13,3 +13,4 @@ readme = "README.md"
 [dependencies]
 term-basics-linux = "0.5.7"
 lapp = "0.4.0"
+mexprp = "0.3.0"
