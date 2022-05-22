@@ -9,22 +9,16 @@ pub const NULL: usize = 0;
 pub const FLOW: usize = 1;
 pub const INTERNAL_FLOW: usize = 2;
 pub const NET: usize = 3;
-pub const NET_NEG: usize = 4;
-pub const NET_POS: usize = 5;
-pub const TRA: usize = 6;
-pub const TRA_NEG: usize = 7;
-pub const TRA_POS: usize = 8;
-pub const YIELD: usize = 9;
-pub const YIELD_NEG: usize = 10;
-pub const YIELD_POS: usize = 11;
-pub const SPENDING_MONTH: usize = 12;
-pub const SPENDING_CUMULATIVE: usize = 13;
-pub const RECEIVING_MONTH: usize = 14;
-pub const RECEIVING_CUMULATIVE: usize = 15;
-pub const ASSETS: usize = 16;
-pub const ROI: usize = 17;
+pub const ASSETS: usize = 4;
+pub const TRA: usize = 5;
+pub const YIELD: usize = 6;
+pub const ROI: usize = 7;
+pub const SPENDING_MONTH: usize = 8;
+pub const SPENDING_CUMULATIVE: usize = 9;
+pub const RECEIVING_MONTH: usize = 10;
+pub const RECEIVING_CUMULATIVE: usize = 11;
 
-pub const NR_BUILDIN_ACCOUNTS: usize = 18;
+pub const NR_BUILDIN_ACCOUNTS: usize = 12;
 
 pub type NamedBalance = (String, f32);
 
@@ -95,11 +89,7 @@ pub fn update(ts: &[Trans], state: &mut State, from: Option<usize>, from_date: O
                 let diff = amount - state.accounts[dst];
                 if dst != NULL{
                     state.accounts[NET] += diff;
-                    state.accounts[NET_NEG] += diff.min(0.0);
-                    state.accounts[NET_POS] += diff.max(0.0);
                     state.accounts[YIELD] += diff;
-                    state.accounts[YIELD_NEG] += diff.min(0.0);
-                    state.accounts[YIELD_POS] += diff.max(0.0);
                     if state.account_labels[dst] == AccountLabel::Assets{
                         let old = state.accounts[ASSETS];
                         state.accounts[ASSETS] += diff;
@@ -126,13 +116,11 @@ pub fn update(ts: &[Trans], state: &mut State, from: Option<usize>, from_date: O
                     state.accounts[INTERNAL_FLOW] += amount;
                 } else if src != NULL && dst == NULL{
                     state.accounts[NET] -= amount;
-                    state.accounts[NET_NEG] += amount;
                     if state.account_labels[src] != AccountLabel::Debt{
                         spending_acc += amount;
                     }
                 } else if src == NULL && dst != NULL{
                     state.accounts[NET] += amount;
-                    state.accounts[NET_POS] += amount;
                     let init = &mut state.account_initialised[dst];
                     if state.account_labels[dst] != AccountLabel::Debt && *init{
                         receiving_acc += amount;
@@ -166,23 +154,17 @@ pub fn update(ts: &[Trans], state: &mut State, from: Option<usize>, from_date: O
                     state.accounts[ASSETS] += add;
                 }
                 let diff = add - sub;
-                if diff >= 0.0 { state.accounts[TRA_POS] += diff; }
-                else if diff < 0.0 { state.accounts[TRA_NEG] -= diff; }
                 state.accounts[TRA] += diff;
                 if src != NULL && dst != NULL{
                     state.accounts[INTERNAL_FLOW] += sub.max(add);
                     state.accounts[NET] += diff;
-                    state.accounts[NET_NEG] += diff.min(0.0);
-                    state.accounts[NET_POS] += diff.max(0.0);
                 } else if src != NULL && dst == NULL{
                     state.accounts[NET] -= sub;
-                    state.accounts[NET_NEG] += sub;
                     if state.account_labels[src] != AccountLabel::Debt{
                         spending_acc += sub;
                     }
                 } else if src == NULL && dst != NULL{
                     state.accounts[NET] += add;
-                    state.accounts[NET_POS] += add;
                     let init = &mut state.account_initialised[dst];
                     if state.account_labels[dst] != AccountLabel::Debt && *init{
                         receiving_acc += sub;
@@ -314,20 +296,14 @@ impl NameBank{
         self.account_id("_flow".to_owned());
         self.account_id("_internal_flow".to_owned());
         self.account_id("_net".to_owned());
-        self.account_id("_net_lost".to_owned());
-        self.account_id("_net_gained".to_owned());
+        self.account_id("_assets".to_owned());
         self.account_id("_tra".to_owned());
-        self.account_id("_tra_lost".to_owned());
-        self.account_id("_tra_gained".to_owned());
         self.account_id("_yield".to_owned());
-        self.account_id("_yield_lost".to_owned());
-        self.account_id("_yield_gained".to_owned());
+        self.account_id("_roi".to_owned());
         self.account_id("_spending_month".to_owned());
         self.account_id("_spending_cumulative".to_owned());
         self.account_id("_receiving_month".to_owned());
         self.account_id("_receiving_cumulative".to_owned());
-        self.account_id("_assets".to_owned());
-        self.account_id("_roi".to_owned());
         self.asset_id("REAL_FIAT".to_owned());
         self.asset_id("FIAT".to_owned());
         self
