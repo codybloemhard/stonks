@@ -38,7 +38,6 @@ fn main() {
         if split.len() < 2 { continue; }
         redact_map.insert(split[0].to_string(), split[1].to_string());
     }
-    println!("{:?}", redact_map);
 
     let mut namebank = NameBank::new();
     let mut date = Date::default();

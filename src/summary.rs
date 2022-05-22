@@ -16,25 +16,36 @@ pub fn summary(namebank: &NameBank, state: &State, hist: &[Vec<f32>], redact: bo
     let net = accounts[NET].1;
     let debt = net - min_sum;
     let r#yield = accounts[YIELD].1;
+    let roi = accounts[ROI].1;
+    let assets = accounts[ASSETS].1;
     let sum_holding_error = pos_sum - total_holdings_worth;
     let real_fiat = amounts[0].1;
     let shadowrealm_fiat = amounts[1].1;
-    let fiat_split = real_fiat / total_holdings_worth * 100.0;
+    let fiat_split = real_fiat / total_holdings_worth;
+    let assets_split = 1.0 - fiat_split;
     let spend_past_12m: f32 = hist.iter().rev().take(12).map(|frame| frame[SPENDING_MONTH]).sum();
     let receive_past_12m: f32 = hist.iter().rev().take(12).map(|frame| frame[RECEIVING_MONTH]).sum();
     let saving_rate_past_12m = (receive_past_12m - spend_past_12m) / receive_past_12m * 100.0;
+    let assets_pos_sum_error = assets - (pos_sum * assets_split);
+    let assets_total_holdings_error = assets - (total_holdings_worth * assets_split);
+    let assets_error = assets_pos_sum_error.max(assets_total_holdings_error);
 
     let (textc, infoc, namec, posc, negc, fracc) = (UC::Std, UC::Magenta, UC::Blue, UC::Green, UC::Red, UC::Yellow);
     let pncol = |v: f32| if v < 0.0 { negc } else { posc };
+    let roicol = |v: f32| if v < 1.0 { negc } else { posc };
     println!("{}General:", infoc);
     println!("{}Net: {}{}{}.", textc, pncol(net), net / norm_fac, textc);
     println!("{}Debt: {}{}{}.", textc, pncol(debt), debt / norm_fac, textc);
     println!("{}Yield: {}{}{}.", textc, pncol(r#yield), r#yield / norm_fac, textc);
+    println!("{}ROI: {}{}{}.", textc, roicol(roi), roi, textc);
+    println!("{}Assets: {}{}{}.", textc, pncol(assets), assets, textc);
     println!("{}Positive owned sum: {}{}", textc, posc, if redact { 1.0 } else { pos_sum });
     println!("{}Total holdings worth: {}{}",
              textc, posc, total_holdings_worth / norm_fac);
     println!("{}Positive owned sum / holdings error: {}{}{} which is {}{}{}%.",
              textc, pncol(sum_holding_error), sum_holding_error / norm_fac, textc, posc, sum_holding_error.abs() / min_sum * 100.0, textc);
+    println!("{}Assets / (positive sum, holdings) error: {}{}{} which is {}{}{}%.",
+            textc, pncol(assets_error), assets_error / norm_fac, textc, posc, assets_error.abs() / min_sum * 100.0, textc);
     println!("{}You spent {}{}{} the past year.",
              textc, pncol(spend_past_12m), spend_past_12m / norm_fac, textc);
     println!("{}You received {}{}{} the past year.",
@@ -57,7 +68,7 @@ pub fn summary(namebank: &NameBank, state: &State, hist: &[Vec<f32>], redact: bo
 
     println!("{}Distribution:", infoc);
     println!("{t}With a split of {f}{a}{t}% assets and {f}{b}{t}% fiat",
-             t = textc, f = fracc, a = 100.0 - fiat_split, b = fiat_split);
+             t = textc, f = fracc, a = assets_split * 100.0, b = fiat_split * 100.0);
     println!("{t}A total of {c}{f}{t} fiat is stuck in the shadowrealm",
              t = textc, c = pncol(shadowrealm_fiat), f = shadowrealm_fiat / norm_fac);
 

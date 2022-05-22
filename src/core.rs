@@ -21,8 +21,10 @@ pub const SPENDING_MONTH: usize = 12;
 pub const SPENDING_CUMULATIVE: usize = 13;
 pub const RECEIVING_MONTH: usize = 14;
 pub const RECEIVING_CUMULATIVE: usize = 15;
+pub const ASSETS: usize = 16;
+pub const ROI: usize = 17;
 
-pub const NR_BUILDIN_ACCOUNTS: usize = 16;
+pub const NR_BUILDIN_ACCOUNTS: usize = 18;
 
 pub type NamedBalance = (String, f32);
 
@@ -43,6 +45,7 @@ pub fn hist(state: &mut State, ts: &[Trans]) -> (Vec<Vec<f32>>, MonthDate){
     let mut date = (ts[0].date.1, ts[0].date.2);
     let start_date = date;
     let mut prev_frame = Vec::new();
+    state.accounts[ROI] = 1.0;
     loop{
         let (new_from, new_date) = update(ts, state, Some(from), Some(date));
         // we have a frame for every month, fill in months the data skips
@@ -97,6 +100,12 @@ pub fn update(ts: &[Trans], state: &mut State, from: Option<usize>, from_date: O
                     state.accounts[YIELD] += diff;
                     state.accounts[YIELD_NEG] += diff.min(0.0);
                     state.accounts[YIELD_POS] += diff.max(0.0);
+                    if state.account_labels[dst] == AccountLabel::Assets{
+                        let old = state.accounts[ASSETS];
+                        state.accounts[ASSETS] += diff;
+                        let roi = state.accounts[ASSETS] / old;
+                        state.accounts[ROI] *= roi;
+                    }
                 }
                 if state.account_labels[dst] == AccountLabel::Fiat{
                     state.asset_amounts[REAL_FIAT] += diff;
@@ -107,6 +116,12 @@ pub fn update(ts: &[Trans], state: &mut State, from: Option<usize>, from_date: O
                 state.accounts[src] -= amount;
                 state.accounts[dst] += amount;
                 state.accounts[FLOW] += amount;
+                if state.account_labels[src] == AccountLabel::Assets{
+                    state.accounts[ASSETS] -= amount;
+                }
+                if state.account_labels[dst] == AccountLabel::Assets{
+                    state.accounts[ASSETS] += amount;
+                }
                 if src != NULL && dst != NULL {
                     state.accounts[INTERNAL_FLOW] += amount;
                 } else if src != NULL && dst == NULL{
@@ -144,6 +159,12 @@ pub fn update(ts: &[Trans], state: &mut State, from: Option<usize>, from_date: O
                 state.accounts[src] -= sub;
                 state.accounts[dst] += add;
                 state.accounts[FLOW] += sub.max(add);
+                if state.account_labels[src] == AccountLabel::Assets{
+                    state.accounts[ASSETS] -= sub;
+                }
+                if state.account_labels[dst] == AccountLabel::Assets{
+                    state.accounts[ASSETS] += add;
+                }
                 let diff = add - sub;
                 if diff >= 0.0 { state.accounts[TRA_POS] += diff; }
                 else if diff < 0.0 { state.accounts[TRA_NEG] -= diff; }
@@ -305,6 +326,8 @@ impl NameBank{
         self.account_id("_spending_cumulative".to_owned());
         self.account_id("_receiving_month".to_owned());
         self.account_id("_receiving_cumulative".to_owned());
+        self.account_id("_assets".to_owned());
+        self.account_id("_roi".to_owned());
         self.asset_id("REAL_FIAT".to_owned());
         self.asset_id("FIAT".to_owned());
         self
@@ -394,7 +417,6 @@ pub enum TransExt{
 
 pub type Date = (u8, u8, u16);
 
-#[derive(Debug)]
 pub struct Trans{
     date: Date,
     tags: Vec<usize>,

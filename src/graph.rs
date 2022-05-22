@@ -151,6 +151,6 @@ pub fn graph(norm_fac: f32, nb: &NameBank, ts: &[Trans], include: &[&str], redac
     page.push_str(&tail);
     let mut file = File::create("graph.html").expect("Could not create file!");
     file.write_all(page.as_bytes()).expect("Could not write to file!");
-    Command::new(browser.to_string()).arg("graph.html").output().unwrap_or_else(|_| panic!("Could not open graph in {}!", browser));
+    Command::new(browser).arg("graph.html").output().unwrap_or_else(|_| panic!("Could not open graph in {}!", browser));
 }
 
