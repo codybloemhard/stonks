@@ -19,9 +19,9 @@ pub fn summary(namebank: &NameBank, state: &State, hist: &[Vec<f32>], redact: bo
     let roi = accounts[ROI].1;
     let assets = accounts[ASSETS].1;
     let sum_holding_error = pos_sum - total_holdings_worth;
-    let real_fiat = amounts[0].1;
+    let fiat = amounts[0].1;
     let shadowrealm_fiat = amounts[1].1;
-    let fiat_split = real_fiat / total_holdings_worth;
+    let fiat_split = fiat / total_holdings_worth;
     let assets_split = 1.0 - fiat_split;
     let spend_past_12m: f32 = hist.iter().rev().take(12).map(|frame| frame[SPENDING_MONTH]).sum();
     let receive_past_12m: f32 = hist.iter().rev().take(12).map(|frame| frame[RECEIVING_MONTH]).sum();
@@ -38,7 +38,8 @@ pub fn summary(namebank: &NameBank, state: &State, hist: &[Vec<f32>], redact: bo
     println!("{}Debt: {}{}{}.", textc, pncol(debt), debt / norm_fac, textc);
     println!("{}Yield: {}{}{}.", textc, pncol(r#yield), r#yield / norm_fac, textc);
     println!("{}ROI: {}{}{}.", textc, roicol(roi), roi, textc);
-    println!("{}Assets: {}{}{}.", textc, pncol(assets), assets, textc);
+    println!("{}Assets: {}{}{}.", textc, pncol(assets), assets / norm_fac, textc);
+    println!("{}Fiat: {}{}{}.", textc, pncol(fiat), fiat / norm_fac, textc);
     println!("{}Positive owned sum: {}{}", textc, posc, if redact { 1.0 } else { pos_sum });
     println!("{}Total holdings worth: {}{}",
              textc, posc, total_holdings_worth / norm_fac);
@@ -104,7 +105,7 @@ pub fn summary(namebank: &NameBank, state: &State, hist: &[Vec<f32>], redact: bo
         let infc = if inflation > 1.0 { negc } else { posc };
         let roic = if roi > 1.0 { posc } else { negc };
         let mut month_cost = spend_past_12m / 12.0;
-        let mut assets = min_sum - real_fiat;
+        let mut assets = min_sum - fiat;
         let mut total = min_sum;
         let mut months = 0.0;
         loop{
