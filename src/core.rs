@@ -408,18 +408,21 @@ pub enum TransErr {
     DateFields,
     ParseError(String, String),
     FloatError(String, String, String),
-    MultipleFloats(String),
 }
 
 impl std::fmt::Display for TransErr{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result{
         match self{
-            TransErr::UnknownCommand(cmd) => write!(f, "Unknown command: {}", cmd),
-            TransErr::NotEnoughFields(field) => write!(f, "Not enough fields (comma separated) for {}", field),
-            TransErr::DateFields => write!(f, "A date needs 3 fields (day/month/year)"),
-            TransErr::ParseError(field, wrong) => write!(f, "Could not parse '{}' in field '{}'", wrong, field),
-            TransErr::FloatError(field, wrong, error) => write!(f, "Could not parse '{}' in float '{}': {}", wrong, field, error),
-            TransErr::MultipleFloats(field) => write!(f, "Field '{}' returned more than one floating point value", field),
+            TransErr::UnknownCommand(cmd)
+                => write!(f, "Unknown command: {}", cmd),
+            TransErr::NotEnoughFields(field)
+                => write!(f, "Not enough fields (comma separated) for {}", field),
+            TransErr::DateFields
+                => write!(f, "A date needs 3 fields (day/month/year)"),
+            TransErr::ParseError(field, wrong)
+                => write!(f, "Could not parse '{}' in field '{}'", wrong, field),
+            TransErr::FloatError(field, wrong, error)
+                => write!(f, "Could not parse '{}' in float '{}': {}", wrong, field, error),
         }
     }
 }
@@ -448,15 +451,12 @@ impl IntoTrans for String{
 
         macro_rules! parse_float{
             ($string:expr, $field:expr) => {
-                match mexprp::eval::<f64>($string){
-                    Ok(ans) => match ans{
-                        mexprp::Answer::Single(f) => f as f32,
-                        _ => return Some(Err(TransErr::MultipleFloats($field.to_string()))),
-                    },
+                match meval::eval_str($string){
+                    Ok(ans) => ans as f32,
                     Err(err) => return Some(Err(TransErr::FloatError(
-                                $field.to_string(),
-                                $string.to_string(),
-                                format!("{}", err)
+                        $field.to_string(),
+                        $string.to_string(),
+                        format!("{}", err)
                     ))),
                 }
             }

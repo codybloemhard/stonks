@@ -5,7 +5,7 @@ authors = ["Cody Bloemhard <codybloemhard@gmail.com>"]
 edition = "2018"
 license = "GPL-3.0-only"
 description = "Small tool to track personal finance, transactional database like style."
-repository = "https://github.com/codybloemhard/stonks"
+repository = "https://gitlab.com/codybloemhard/stonks"
 readme = "README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -13,4 +13,4 @@ readme = "README.md"
 [dependencies]
 term-basics-linux = "0.5.7"
 lapp = "0.4.0"
-mexprp = "0.3.0"
+meval = "0.2.0"

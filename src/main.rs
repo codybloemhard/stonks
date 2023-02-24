@@ -29,7 +29,7 @@ fn main() {
     let draw_graph = args.get_bool("graph");
     let contents = fs::read_to_string(infile).expect("Couldn't read sample.");
     let browser = args.get_string("browser");
-    let year_digits = args.get_integer("date-year-digits").min(4).max(0) as u16;
+    let year_digits = args.get_integer("date-year-digits").clamp(0, 4) as u16;
     let use_month_name = !args.get_bool("date-month-digit");
     let redact_list = args.get_strings("redact-map");
     let mut redact_map = HashMap::new();
