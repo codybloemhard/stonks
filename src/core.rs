@@ -20,14 +20,18 @@ pub const RECEIVING_CUMULATIVE: usize = 11;
 
 pub const NR_BUILDIN_ACCOUNTS: usize = 12;
 
-pub type NamedBalance = (String, f32);
+pub type NamedBalance = (String, f32); // Name, value
+pub type NamedBalanceStat = (String, f32, bool); // Name, value, statistic?
 
-pub fn into_named_accounts(bs: &[f32], state: &NameBank) -> Vec<NamedBalance>{
-    bs.iter().copied().enumerate().map(|(id, val)| (state.account_name(id), val)).collect::<Vec<_>>()
+pub fn into_named_accounts(bs: &[f32], nb: &NameBank, state: &State) -> Vec<NamedBalanceStat>{
+    bs.iter().copied().enumerate()
+        .map(|(id, val)| (nb.account_name(id), val, state.account_labels[id] == AccountLabel::Stat))
+        .collect::<Vec<_>>()
 }
 
 pub fn into_named_assets(bs: &[f32], state: &NameBank) -> Vec<NamedBalance>{
-    bs.iter().copied().enumerate().map(|(id, val)| (state.asset_name(id), val)).collect::<Vec<_>>()
+    bs.iter().copied().enumerate().map(|(id, val)| (state.asset_name(id), val))
+        .collect::<Vec<_>>()
 }
 
 pub type MonthDate = (u8, u16);
@@ -106,30 +110,33 @@ pub fn update(ts: &[Trans], state: &mut State, from: Option<usize>, from_date: O
                 state.accounts[src] -= amount;
                 state.accounts[dst] += amount;
                 state.accounts[FLOW] += amount;
-                if state.account_labels[src] == AccountLabel::Assets{
+                let srcl = state.account_labels[src];
+                let dstl = state.account_labels[dst];
+                if srcl == AccountLabel::Assets{
                     state.accounts[ASSETS] -= amount;
                 }
-                if state.account_labels[dst] == AccountLabel::Assets{
+                if dstl == AccountLabel::Assets{
                     state.accounts[ASSETS] += amount;
                 }
-                if src != NULL && dst != NULL {
+                if src != NULL && dst != NULL && dstl != AccountLabel::Stat{
                     state.accounts[INTERNAL_FLOW] += amount;
                 } else if src != NULL && dst == NULL{
                     state.accounts[NET] -= amount;
-                    if state.account_labels[src] != AccountLabel::Debt{
+                    if srcl != AccountLabel::Debt{
                         spending_acc += amount;
                     }
-                } else if src == NULL && dst != NULL{
+                } else if src == NULL && dst != NULL && dstl != AccountLabel::Stat{
                     state.accounts[NET] += amount;
                     let init = &mut state.account_initialised[dst];
-                    if state.account_labels[dst] != AccountLabel::Debt && *init{
+                    if dstl != AccountLabel::Debt && *init{
                         receiving_acc += amount;
                     }
                     *init = true;
                 }
-                let srcl = state.account_labels[src];
-                let dstl = state.account_labels[dst];
-                if srcl == AccountLabel::Fiat && dstl != AccountLabel::Fiat{
+                if srcl == AccountLabel::Fiat &&
+                    dstl != AccountLabel::Fiat &&
+                    dstl != AccountLabel::Stat
+                {
                     state.asset_amounts[REAL_FIAT] -= amount;
                     // When used correctly, this FIAT is converted away to assets
                     if dstl == AccountLabel::Assets{
@@ -147,33 +154,36 @@ pub fn update(ts: &[Trans], state: &mut State, from: Option<usize>, from_date: O
                 state.accounts[src] -= sub;
                 state.accounts[dst] += add;
                 state.accounts[FLOW] += sub.max(add);
-                if state.account_labels[src] == AccountLabel::Assets{
+                let srcl = state.account_labels[src];
+                let dstl = state.account_labels[dst];
+                if srcl == AccountLabel::Assets{
                     state.accounts[ASSETS] -= sub;
                 }
-                if state.account_labels[dst] == AccountLabel::Assets{
+                if dstl == AccountLabel::Assets{
                     state.accounts[ASSETS] += add;
                 }
                 let diff = add - sub;
                 state.accounts[TRA] += diff;
-                if src != NULL && dst != NULL{
+                if src != NULL && dst != NULL && dstl != AccountLabel::Stat{
                     state.accounts[INTERNAL_FLOW] += sub.max(add);
                     state.accounts[NET] += diff;
                 } else if src != NULL && dst == NULL{
                     state.accounts[NET] -= sub;
-                    if state.account_labels[src] != AccountLabel::Debt{
+                    if srcl != AccountLabel::Debt{
                         spending_acc += sub;
                     }
-                } else if src == NULL && dst != NULL{
+                } else if src == NULL && dst != NULL && dstl != AccountLabel::Stat{
                     state.accounts[NET] += add;
                     let init = &mut state.account_initialised[dst];
-                    if state.account_labels[dst] != AccountLabel::Debt && *init{
+                    if dstl != AccountLabel::Debt && *init{
                         receiving_acc += sub;
                     }
                     *init = true;
                 }
-                let srcl = state.account_labels[src];
-                let dstl = state.account_labels[dst];
-                if srcl == AccountLabel::Fiat && dstl != AccountLabel::Fiat{
+                if srcl == AccountLabel::Fiat &&
+                    dstl != AccountLabel::Fiat &&
+                    dstl != AccountLabel::Stat
+                {
                     state.asset_amounts[REAL_FIAT] -= sub;
                     // When used correctly, this FIAT is converted away to assets
                     if dstl == AccountLabel::Assets{
@@ -208,6 +218,9 @@ pub fn update(ts: &[Trans], state: &mut State, from: Option<usize>, from_date: O
             TransExt::Deb { account } => {
                 state.account_labels[account] = AccountLabel::Debt;
             }
+            TransExt::Stat { account } => {
+                state.account_labels[account] = AccountLabel::Stat;
+            }
         }
     }
     (usize::MAX, date)
@@ -219,6 +232,7 @@ pub enum AccountLabel{
     Fiat,
     Assets,
     Debt,
+    Stat,
 }
 
 pub struct State{
@@ -389,6 +403,9 @@ pub enum TransExt{
     Deb{
         account: usize,
     },
+    Stat{
+        account: usize,
+    }
 }
 
 pub type Date = (u8, u8, u16);
@@ -403,9 +420,9 @@ pub type TransRes = Option<Result<Trans, TransErr>>;
 
 #[derive(Debug)]
 pub enum TransErr {
+    DateFields,
     UnknownCommand(String),
     NotEnoughFields(String),
-    DateFields,
     ParseError(String, String),
     FloatError(String, String, String),
 }
@@ -413,12 +430,16 @@ pub enum TransErr {
 impl std::fmt::Display for TransErr{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result{
         match self{
+            TransErr::DateFields
+                => write!(f, "A date needs 3 fields (day/month/year)"),
+            // TransErr::StatAsSrc
+            //     => write!(f, "Moving out of a statistic account is not support \
+            //               to prevent unintended behaviour. \
+            //               You can move negative values into a stat account if you wish."),
             TransErr::UnknownCommand(cmd)
                 => write!(f, "Unknown command: {}", cmd),
             TransErr::NotEnoughFields(field)
                 => write!(f, "Not enough fields (comma separated) for {}", field),
-            TransErr::DateFields
-                => write!(f, "A date needs 3 fields (day/month/year)"),
             TransErr::ParseError(field, wrong)
                 => write!(f, "Could not parse '{}' in field '{}'", wrong, field),
             TransErr::FloatError(field, wrong, error)
@@ -428,7 +449,7 @@ impl std::fmt::Display for TransErr{
 }
 
 pub trait IntoTrans{
-    fn into_trans(self, state: &mut NameBank, date: &mut Date) -> TransRes;
+    fn into_trans(self, nb: &mut NameBank, date: &mut Date) -> TransRes;
 }
 
 impl IntoTrans for String{
@@ -436,15 +457,18 @@ impl IntoTrans for String{
         if self.is_empty() { return None; }
         if self.starts_with('#') { return None; }
         let splitted = self.split(',').collect::<Vec<_>>();
-        if splitted.len() < 2 { return Some(Err(TransErr::NotEnoughFields("any command".to_string()))); }
+        if splitted.len() < 2 {
+            return Some(Err(TransErr::NotEnoughFields("any command".to_string())));
+        }
 
         macro_rules! parse_field{
             ($string:expr, $field:expr) => {
                 match tbl::string_to_value($string){
                     Some(x) => x,
                     None => return Some(Err(TransErr::ParseError(
-                                $field.to_string(),
-                                $string.to_string()))),
+                        $field.to_string(),
+                        $string.to_string()))
+                    ),
                 }
             }
         }
@@ -566,6 +590,13 @@ impl IntoTrans for String{
                 tags_ind = 3;
                 check_fields!(3, "deb");
                 TransExt::Deb{
+                    account: nb.account_id(splitted[2].to_string()),
+                }
+            },
+            "stat" => {
+                tags_ind = 3;
+                check_fields!(3, "stat");
+                TransExt::Stat{
                     account: nb.account_id(splitted[2].to_string()),
                 }
             },

@@ -4,12 +4,17 @@ use term_basics_linux::UC;
 
 use std::collections::HashMap;
 
-pub fn summary(namebank: &NameBank, state: &State, hist: &[Vec<f32>], redact: bool, redact_map: &HashMap<String, String>, includes: &[String]) -> f32{
-    let accounts = into_named_accounts(&state.accounts, namebank);
+pub fn summary(
+    namebank: &NameBank, state: &State, hist: &[Vec<f32>],
+    redact: bool, redact_map: &HashMap<String, String>, includes: &[String]
+) -> f32{
+    let accounts = into_named_accounts(&state.accounts, namebank, state);
     let amounts = into_named_assets(&state.asset_amounts, namebank);
     let prices = into_named_assets(&state.asset_prices, namebank);
     let it = amounts.iter().zip(prices.iter());
-    let pos_sum: f32 = accounts.iter().skip(NR_BUILDIN_ACCOUNTS).map(|(_, x)| if *x > 0.0 { *x } else { 0.0 }).sum();
+    let pos_sum: f32 = accounts.iter().skip(NR_BUILDIN_ACCOUNTS).map(|(_, x, stat)|
+        if *x > 0.0 && !stat { *x } else { 0.0 }
+    ).sum();
     let total_holdings_worth: f32 = it.fold(0.0, |acc, ((_, a), (_, p))| acc + a * p);
     let min_sum = pos_sum.min(total_holdings_worth);
     let norm_fac = if redact { min_sum } else { 1.0 };
@@ -56,7 +61,7 @@ pub fn summary(namebank: &NameBank, state: &State, hist: &[Vec<f32>], redact: bo
 
     println!("{}Accounts:", infoc);
     let include_not_everything = !includes.is_empty();
-    for (name, amount) in &accounts{
+    for (name, amount, _) in &accounts{
         if include_not_everything && !includes.contains(name){ continue; }
         let val = *amount / norm_fac;
         let name = if let Some(redacted) = redact_map.get(name){
@@ -98,6 +103,8 @@ pub fn summary(namebank: &NameBank, state: &State, hist: &[Vec<f32>], redact: bo
     let moy_label = |x: f32| if x.abs() > 24.0 { "years" } else { "months" };
     println!("{}Your net worth is {}{}{} {} (no Inflation and ROI)",
         textc, pncol(time_flat), moy(time_flat), textc, moy_label(time_flat));
+    println!("{}A {}2{}% yield would give you {}{}{}% of your spending.",
+        textc, posc, textc, posc, (min_sum * 0.02) / spend_past_12m * 100.0, textc);
 
     let print_time_exp = |inflation_rate: f32, roi_rate: f32|{
         let inflation = (1.0 + (inflation_rate * 0.01)).powf(1.0 / 12.0);
