@@ -35,7 +35,8 @@ pub fn summary(
     let assets_total_holdings_error = assets - (total_holdings_worth * assets_split);
     let assets_error = assets_pos_sum_error.max(assets_total_holdings_error);
 
-    let (textc, infoc, namec, posc, negc, fracc) = (UC::Std, UC::Magenta, UC::Blue, UC::Green, UC::Red, UC::Yellow);
+    let (textc, infoc, namec, posc, negc, fracc)
+        = (UC::Std, UC::Magenta, UC::Blue, UC::Green, UC::Red, UC::Yellow);
     let pncol = |v: f32| if v < 0.0 { negc } else { posc };
     let roicol = |v: f32| if v < 1.0 { negc } else { posc };
     println!("{}General:", infoc);
@@ -47,36 +48,54 @@ pub fn summary(
     println!("{}Fiat: {}{}{}.", textc, pncol(fiat), fiat / norm_fac, textc);
     println!("{}Positive owned sum: {}{}", textc, posc, if redact { 1.0 } else { pos_sum });
     println!("{}Total holdings worth: {}{}",
-             textc, posc, total_holdings_worth / norm_fac);
+        textc, posc, total_holdings_worth / norm_fac
+    );
     println!("{}Positive owned sum / holdings error: {}{}{} which is {}{}{}%.",
-             textc, pncol(sum_holding_error), sum_holding_error / norm_fac, textc, posc, sum_holding_error.abs() / min_sum * 100.0, textc);
+        textc, pncol(sum_holding_error), sum_holding_error / norm_fac, textc,
+        posc, sum_holding_error.abs() / min_sum * 100.0, textc
+    );
     println!("{}Assets / (positive sum, holdings) error: {}{}{} which is {}{}{}%.",
-            textc, pncol(assets_error), assets_error / norm_fac, textc, posc, assets_error.abs() / min_sum * 100.0, textc);
+        textc, pncol(assets_error), assets_error / norm_fac, textc, posc,
+        assets_error.abs() / min_sum * 100.0, textc
+    );
     println!("{}You spent {}{}{} the past year.",
-             textc, pncol(spend_past_12m), spend_past_12m / norm_fac, textc);
+        textc, pncol(spend_past_12m), spend_past_12m / norm_fac, textc
+    );
     println!("{}You received {}{}{} the past year.",
-             textc, pncol(receive_past_12m), receive_past_12m / norm_fac, textc);
+        textc, pncol(receive_past_12m), receive_past_12m / norm_fac, textc
+    );
     println!("{}Your saving rate is {}{}{}% the past year.",
-             textc, pncol(saving_rate_past_12m), saving_rate_past_12m, textc);
+        textc, pncol(saving_rate_past_12m), saving_rate_past_12m, textc
+    );
 
     println!("{}Accounts:", infoc);
+    let mut to_print = Vec::new();
     let include_not_everything = !includes.is_empty();
     for (name, amount, _) in &accounts{
-        if include_not_everything && !includes.contains(name){ continue; }
+        let index = includes.iter().position(|inc| inc == name);
+        if include_not_everything && index.is_none(){ continue; }
         let val = *amount / norm_fac;
         let name = if let Some(redacted) = redact_map.get(name){
             redacted
         } else {
             name
         };
+        to_print.push((name, val, index.unwrap_or(0)));
+    }
+    if include_not_everything{
+        to_print.sort_by(|(_, _, i), (_, _, j)| i.cmp(j));
+    }
+    for (name, val, _) in to_print{
         println!("{}{}: {}{}", namec, name, pncol(val), val);
     }
 
     println!("{}Distribution:", infoc);
     println!("{t}With a split of {f}{a}{t}% assets and {f}{b}{t}% fiat",
-             t = textc, f = fracc, a = assets_split * 100.0, b = fiat_split * 100.0);
+        t = textc, f = fracc, a = assets_split * 100.0, b = fiat_split * 100.0
+    );
     println!("{t}A total of {c}{f}{t} fiat is stuck in the shadowrealm",
-             t = textc, c = pncol(shadowrealm_fiat), f = shadowrealm_fiat / norm_fac);
+        t = textc, c = pncol(shadowrealm_fiat), f = shadowrealm_fiat / norm_fac
+    );
 
     let mut data_rows = Vec::new();
     for ((name, amount), (_, price)) in amounts.iter().zip(prices.iter()){
@@ -86,7 +105,8 @@ pub fn summary(
         data_rows.push((name, amount, worth, price, worth / total_holdings_worth));
     }
     data_rows.sort_by(|(_, _, _, _, sa), (_, _, _, _, sb)|
-        sb.partial_cmp(sa).unwrap_or(std::cmp::Ordering::Less));
+        sb.partial_cmp(sa).unwrap_or(std::cmp::Ordering::Less)
+    );
     for (name, amount, worth, price, share) in data_rows{
         if !redact{
             println!("{nc}{name}{tc}: {ac}{amount}{tc} worth {wc}{worth}{tc} priced {pc}{price}{tc} at {sc}{share}{tc}% of total",
@@ -117,7 +137,9 @@ pub fn summary(
         let mut months = 0.0;
         loop{
             if months >= 1200.0{
-                println!("{}Your assets are worth {}100+{} years ({}% Infl., {}% ROI)", textc, posc, textc, inflation_rate, roi_rate);
+                println!("{}Your assets are worth {}100+{} years ({}% Infl., {}% ROI)",
+                    textc, posc, textc, inflation_rate, roi_rate
+                );
                 return;
             }
             if total > month_cost{
@@ -131,7 +153,9 @@ pub fn summary(
             } else {
                 months += total / month_cost;
                 println!("{}Your assets are worth {}{}{} {} ({}{}{}% Infl., {}{}{}% ROI)",
-                    textc, pncol(months), moy(months), textc, moy_label(months), infc, inflation_rate, textc, roic, roi_rate, textc);
+                    textc, pncol(months), moy(months), textc, moy_label(months), infc,
+                    inflation_rate, textc, roic, roi_rate, textc
+                );
                 return;
             }
         }
