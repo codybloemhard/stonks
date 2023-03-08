@@ -6,7 +6,7 @@ use std::collections::HashMap;
 
 pub fn summary(
     namebank: &NameBank, state: &State, hist: &[Vec<f32>],
-    redact: bool, redact_map: &HashMap<String, String>, includes: &[String]
+    redact: bool, redact_map: &HashMap<String, String>, includes: &[String], rounding: &str,
 ) -> f32{
     let accounts = into_named_accounts(&state.accounts, namebank, state);
     let amounts = into_named_assets(&state.asset_amounts, namebank);
@@ -39,16 +39,23 @@ pub fn summary(
         = (UC::Std, UC::Magenta, UC::Blue, UC::Green, UC::Red, UC::Yellow);
     let pncol = |v: f32| if v < 0.0 { negc } else { posc };
     let roicol = |v: f32| if v < 1.0 { negc } else { posc };
+
+    let val = match rounding {
+        "none" => |v: f32| v,
+        "whole" => |v: f32| v.round(),
+        _ => |v: f32| (v * 100.0).round() / 100.0,
+    };
+
     println!("{}General:", infoc);
-    println!("{}Net: {}{}{}.", textc, pncol(net), net / norm_fac, textc);
-    println!("{}Debt: {}{}{}.", textc, pncol(debt), debt / norm_fac, textc);
-    println!("{}Yield: {}{}{}.", textc, pncol(r#yield), r#yield / norm_fac, textc);
+    println!("{}Net: {}{}{}.", textc, pncol(net), val(net / norm_fac), textc);
+    println!("{}Debt: {}{}{}.", textc, pncol(debt), val(debt / norm_fac), textc);
+    println!("{}Yield: {}{}{}.", textc, pncol(r#yield), val(r#yield / norm_fac), textc);
     println!("{}ROI: {}{}{}.", textc, roicol(roi), roi, textc);
-    println!("{}Assets: {}{}{}.", textc, pncol(assets), assets / norm_fac, textc);
-    println!("{}Fiat: {}{}{}.", textc, pncol(fiat), fiat / norm_fac, textc);
-    println!("{}Positive owned sum: {}{}", textc, posc, if redact { 1.0 } else { pos_sum });
+    println!("{}Assets: {}{}{}.", textc, pncol(assets), val(assets / norm_fac), textc);
+    println!("{}Fiat: {}{}{}.", textc, pncol(fiat), val(fiat / norm_fac), textc);
+    println!("{}Positive owned sum: {}{}", textc, posc, val(if redact { 1.0 } else { pos_sum }));
     println!("{}Total holdings worth: {}{}",
-        textc, posc, total_holdings_worth / norm_fac
+        textc, posc, val(total_holdings_worth / norm_fac)
     );
     println!("{}Positive owned sum / holdings error: {}{}{} which is {}{}{}%.",
         textc, pncol(sum_holding_error), sum_holding_error / norm_fac, textc,
@@ -59,13 +66,13 @@ pub fn summary(
         assets_error.abs() / min_sum * 100.0, textc
     );
     println!("{}You spent {}{}{} the past year.",
-        textc, pncol(spend_past_12m), spend_past_12m / norm_fac, textc
+        textc, pncol(spend_past_12m), val(spend_past_12m / norm_fac), textc
     );
     println!("{}You received {}{}{} the past year.",
-        textc, pncol(receive_past_12m), receive_past_12m / norm_fac, textc
+        textc, pncol(receive_past_12m), val(receive_past_12m / norm_fac), textc
     );
     println!("{}Your saving rate is {}{}{}% the past year.",
-        textc, pncol(saving_rate_past_12m), saving_rate_past_12m, textc
+        textc, pncol(saving_rate_past_12m), val(saving_rate_past_12m), textc
     );
 
     println!("{}Accounts:", infoc);
@@ -85,13 +92,13 @@ pub fn summary(
     if include_not_everything{
         to_print.sort_by(|(_, _, i), (_, _, j)| i.cmp(j));
     }
-    for (name, val, _) in to_print{
-        println!("{}{}: {}{}", namec, name, pncol(val), val);
+    for (name, aval, _) in to_print{
+        println!("{}{}: {}{}", namec, name, pncol(aval), val(aval));
     }
 
     println!("{}Distribution:", infoc);
     println!("{t}With a split of {f}{a}{t}% assets and {f}{b}{t}% fiat",
-        t = textc, f = fracc, a = assets_split * 100.0, b = fiat_split * 100.0
+        t = textc, f = fracc, a = val(assets_split * 100.0), b = val(fiat_split * 100.0)
     );
     println!("{t}A total of {c}{f}{t} fiat is stuck in the shadowrealm",
         t = textc, c = pncol(shadowrealm_fiat), f = shadowrealm_fiat / norm_fac
@@ -110,21 +117,24 @@ pub fn summary(
     for (name, amount, worth, price, share) in data_rows{
         if !redact{
             println!("{nc}{name}{tc}: {ac}{amount}{tc} worth {wc}{worth}{tc} priced {pc}{price}{tc} at {sc}{share}{tc}% of total",
-                tc = textc, nc = namec, name = name, ac = pncol(*amount), amount = amount, wc = pncol(worth), worth = worth,
-                pc = pncol(*price), price = price, sc = fracc, share = share * 100.0);
+                tc = textc, nc = namec, name = name, ac = pncol(*amount), amount = val(*amount),
+                wc = pncol(worth), worth = val(worth), pc = pncol(*price), price = val(*price),
+                sc = fracc, share = val(share * 100.0)
+            );
         } else {
             println!("{nc}{name}{tc} at {sc}{share}{tc}% of total",
                 tc = textc, nc = namec, name = name, sc = fracc, share = share * 100.0);
         }
     }
+
     println!("{}Metrics:", infoc);
     let time_flat = net / spend_past_12m * 12.0;
     let moy = |x: f32| if x.abs() > 24.0 { x / 12.0 } else { x }; // months or years
     let moy_label = |x: f32| if x.abs() > 24.0 { "years" } else { "months" };
     println!("{}Your net worth is {}{}{} {} (no Inflation and ROI)",
-        textc, pncol(time_flat), moy(time_flat), textc, moy_label(time_flat));
+        textc, pncol(time_flat), val(moy(time_flat)), textc, moy_label(time_flat));
     println!("{}A {}2{}% yield would give you {}{}{}% of your spending.",
-        textc, posc, textc, posc, (min_sum * 0.02) / spend_past_12m * 100.0, textc);
+        textc, posc, textc, posc, val((min_sum * 0.02) / spend_past_12m * 100.0), textc);
 
     let print_time_exp = |inflation_rate: f32, roi_rate: f32|{
         let inflation = (1.0 + (inflation_rate * 0.01)).powf(1.0 / 12.0);
@@ -153,7 +163,7 @@ pub fn summary(
             } else {
                 months += total / month_cost;
                 println!("{}Your assets are worth {}{}{} {} ({}{}{}% Infl., {}{}{}% ROI)",
-                    textc, pncol(months), moy(months), textc, moy_label(months), infc,
+                    textc, pncol(months), val(moy(months)), textc, moy_label(months), infc,
                     inflation_rate, textc, roic, roi_rate, textc
                 );
                 return;
