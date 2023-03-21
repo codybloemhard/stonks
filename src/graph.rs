@@ -98,7 +98,7 @@ pub fn graph(norm_fac: f32, nb: &NameBank, ts: &[Trans], include: &[&str], redac
     page.push('[');
     page.push_str("\'Date\',");
     let mut indices = Vec::new();
-    (0..nb.next_account_id()).into_iter().for_each(|id| {
+    (0..nb.next_account_id()).for_each(|id| {
         let name = nb.account_name(id);
         if include.contains(&&name[..]){
             let name = if let Some(redacted) = redact_map.get(&name){

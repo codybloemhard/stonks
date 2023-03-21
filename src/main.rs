@@ -23,6 +23,7 @@ fn main() {
         --date-year-digits (default 4) how many digits to display a date's year with: [0,1,2,3,4]
         --date-month-digit use a digit instead of a 3 letter name for a date's month
         --value-rounding (default \'\') whole to round to integers, none to never round
+        --min-asset-worth (default 1.0) don't list assets worth less
         <file> (string) transactional \"database\" file
     ");
     let infile = args.get_string("file");
@@ -34,16 +35,17 @@ fn main() {
     let use_month_name = !args.get_bool("date-month-digit");
     let redact_list = args.get_strings("redact-map");
     let value_rounding = args.get_string("value-rounding");
+    let min_asset_worth = args.get_float("min-asset-worth");
     let mut redact_map = HashMap::new();
     for element in redact_list{
-        let split = element.split(':').into_iter().collect::<Vec<_>>();
+        let split = element.split(':').collect::<Vec<_>>();
         if split.len() < 2 { continue; }
         redact_map.insert(split[0].to_string(), split[1].to_string());
     }
 
     let mut namebank = NameBank::new();
     let mut date = Date::default();
-    let ts_res = contents.split('\n').into_iter().map(|line| line.to_string()
+    let ts_res = contents.split('\n').map(|line| line.to_string()
         .into_trans(&mut namebank, &mut date)).enumerate().collect::<Vec<_>>();
     let mut ts = Vec::new();
     let mut errs = Vec::new();
@@ -65,8 +67,16 @@ fn main() {
     let mut state = State::new(&namebank);
     let (hist, _date) = hist(&mut state, &ts);
     let norm_fac = summary(
-        &namebank, &state, &hist, redact, &redact_map,
-        &args.get_strings("summary-accounts"), &value_rounding
+        &SummaryData{
+            namebank: &namebank,
+            state: &state,
+            hist: &hist,
+            redact,
+            redact_map: &redact_map,
+            includes: &args.get_strings("summary-accounts"),
+            rounding: &value_rounding,
+            min_asset_worth,
+        }
     );
 
     if draw_graph{

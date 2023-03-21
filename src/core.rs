@@ -69,7 +69,9 @@ pub fn hist(state: &mut State, ts: &[Trans]) -> (Vec<Vec<f32>>, MonthDate){
     (hist, start_date)
 }
 
-pub fn update(ts: &[Trans], state: &mut State, from: Option<usize>, from_date: Option<MonthDate>) -> (usize, MonthDate){
+pub fn update(ts: &[Trans], state: &mut State, from: Option<usize>, from_date: Option<MonthDate>)
+    -> (usize, MonthDate)
+{
     let skip = if let Some(skip) = from { skip } else { 0 };
     let all = from.is_none();
     let mut date = from_date.unwrap_or((0, 0));
@@ -93,8 +95,8 @@ pub fn update(ts: &[Trans], state: &mut State, from: Option<usize>, from_date: O
                 let diff = amount - state.accounts[dst];
                 if dst != NULL{
                     state.accounts[NET] += diff;
-                    state.accounts[YIELD] += diff;
                     if state.account_labels[dst] == AccountLabel::Assets{
+                        state.accounts[YIELD] += diff;
                         let old = state.accounts[ASSETS];
                         state.accounts[ASSETS] += diff;
                         let roi = state.accounts[ASSETS] / old;

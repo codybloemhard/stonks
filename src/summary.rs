@@ -4,20 +4,28 @@ use term_basics_linux::UC;
 
 use std::collections::HashMap;
 
-pub fn summary(
-    namebank: &NameBank, state: &State, hist: &[Vec<f32>],
-    redact: bool, redact_map: &HashMap<String, String>, includes: &[String], rounding: &str,
-) -> f32{
-    let accounts = into_named_accounts(&state.accounts, namebank, state);
-    let amounts = into_named_assets(&state.asset_amounts, namebank);
-    let prices = into_named_assets(&state.asset_prices, namebank);
+pub struct SummaryData<'a>{
+    pub namebank: &'a NameBank,
+    pub state: &'a State,
+    pub hist: &'a [Vec<f32>],
+    pub redact: bool,
+    pub redact_map: &'a HashMap<String, String>,
+    pub includes: &'a [String],
+    pub rounding: &'a str,
+    pub min_asset_worth: f32,
+}
+
+pub fn summary(d: &SummaryData) -> f32{
+    let accounts = into_named_accounts(&d.state.accounts, d.namebank, d.state);
+    let amounts = into_named_assets(&d.state.asset_amounts, d.namebank);
+    let prices = into_named_assets(&d.state.asset_prices, d.namebank);
     let it = amounts.iter().zip(prices.iter());
     let pos_sum: f32 = accounts.iter().skip(NR_BUILDIN_ACCOUNTS).map(|(_, x, stat)|
         if *x > 0.0 && !stat { *x } else { 0.0 }
     ).sum();
     let total_holdings_worth: f32 = it.fold(0.0, |acc, ((_, a), (_, p))| acc + a * p);
     let min_sum = pos_sum.min(total_holdings_worth);
-    let norm_fac = if redact { min_sum } else { 1.0 };
+    let norm_fac = if d.redact { min_sum } else { 1.0 };
     let net = accounts[NET].1;
     let debt = net - min_sum;
     let r#yield = accounts[YIELD].1;
@@ -28,8 +36,8 @@ pub fn summary(
     let shadowrealm_fiat = amounts[1].1;
     let fiat_split = fiat / total_holdings_worth;
     let assets_split = 1.0 - fiat_split;
-    let spend_past_12m: f32 = hist.iter().rev().take(12).map(|frame| frame[SPENDING_MONTH]).sum();
-    let receive_past_12m: f32 = hist.iter().rev().take(12).map(|frame| frame[RECEIVING_MONTH]).sum();
+    let spend_past_12m: f32 = d.hist.iter().rev().take(12).map(|frame| frame[SPENDING_MONTH]).sum();
+    let receive_past_12m: f32 = d.hist.iter().rev().take(12).map(|frame| frame[RECEIVING_MONTH]).sum();
     let saving_rate_past_12m = (receive_past_12m - spend_past_12m) / receive_past_12m * 100.0;
     let assets_pos_sum_error = assets - (pos_sum * assets_split);
     let assets_total_holdings_error = assets - (total_holdings_worth * assets_split);
@@ -40,7 +48,7 @@ pub fn summary(
     let pncol = |v: f32| if v < 0.0 { negc } else { posc };
     let roicol = |v: f32| if v < 1.0 { negc } else { posc };
 
-    let val = match rounding {
+    let val = match d.rounding {
         "none" => |v: f32| v,
         "whole" => |v: f32| v.round(),
         _ => |v: f32| (v * 100.0).round() / 100.0,
@@ -53,7 +61,7 @@ pub fn summary(
     println!("{}ROI: {}{}{}.", textc, roicol(roi), roi, textc);
     println!("{}Assets: {}{}{}.", textc, pncol(assets), val(assets / norm_fac), textc);
     println!("{}Fiat: {}{}{}.", textc, pncol(fiat), val(fiat / norm_fac), textc);
-    println!("{}Positive owned sum: {}{}", textc, posc, val(if redact { 1.0 } else { pos_sum }));
+    println!("{}Positive owned sum: {}{}", textc, posc, val(if d.redact { 1.0 } else { pos_sum }));
     println!("{}Total holdings worth: {}{}",
         textc, posc, val(total_holdings_worth / norm_fac)
     );
@@ -77,12 +85,12 @@ pub fn summary(
 
     println!("{}Accounts:", infoc);
     let mut to_print = Vec::new();
-    let include_not_everything = !includes.is_empty();
+    let include_not_everything = !d.includes.is_empty();
     for (name, amount, _) in &accounts{
-        let index = includes.iter().position(|inc| inc == name);
+        let index = d.includes.iter().position(|inc| inc == name);
         if include_not_everything && index.is_none(){ continue; }
         let val = *amount / norm_fac;
-        let name = if let Some(redacted) = redact_map.get(name){
+        let name = if let Some(redacted) = d.redact_map.get(name){
             redacted
         } else {
             name
@@ -109,13 +117,14 @@ pub fn summary(
         if *price == 0.0 { continue; }
         if *amount < 0.000001 { continue; }
         let worth = amount * price;
+        if worth < d.min_asset_worth { continue; }
         data_rows.push((name, amount, worth, price, worth / total_holdings_worth));
     }
     data_rows.sort_by(|(_, _, _, _, sa), (_, _, _, _, sb)|
         sb.partial_cmp(sa).unwrap_or(std::cmp::Ordering::Less)
     );
     for (name, amount, worth, price, share) in data_rows{
-        if !redact{
+        if !d.redact{
             println!("{nc}{name}{tc}: {ac}{amount}{tc} worth {wc}{worth}{tc} priced {pc}{price}{tc} at {sc}{share}{tc}% of total",
                 tc = textc, nc = namec, name = name, ac = pncol(*amount), amount = val(*amount),
                 wc = pncol(worth), worth = val(worth), pc = pncol(*price), price = val(*price),
@@ -123,7 +132,7 @@ pub fn summary(
             );
         } else {
             println!("{nc}{name}{tc} at {sc}{share}{tc}% of total",
-                tc = textc, nc = namec, name = name, sc = fracc, share = share * 100.0);
+                tc = textc, nc = namec, name = name, sc = fracc, share = val(share * 100.0));
         }
     }
 
@@ -171,10 +180,14 @@ pub fn summary(
         }
     };
 
+    print_time_exp(10.0, -10.0);
+    print_time_exp(10.0, -5.0);
+    print_time_exp(10.0, 0.0);
     print_time_exp(5.0, -5.0);
     print_time_exp(5.0, 0.0);
     print_time_exp(5.0, 5.0);
     print_time_exp(5.0, 6.0);
     print_time_exp(5.0, 7.0);
+    print_time_exp(5.0, 9.0);
     norm_fac
 }
