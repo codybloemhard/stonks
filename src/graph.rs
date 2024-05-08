@@ -37,7 +37,7 @@ pub fn get_graph_colours(args: &lapp::Args) -> Vec<String>{
     }
     // Nord theme used
     // https://www.nordtheme.com/docs/colors-and-paletteshttps://www.nordtheme.com/docs/colors-and-palettes
-    let preset = vec!["#2E2440", "#ECEFF4", "#BF616A", "#D08770", "#EBCB8B", "#A3BE8C", "#B48EAD"];
+    let preset = ["#2E2440", "#ECEFF4", "#BF616A", "#D08770", "#EBCB8B", "#A3BE8C", "#B48EAD"];
     for (i, colour) in preset.iter().enumerate().take(7){
         if colours.len() < i{
             colours.push(colour.to_owned().to_string());

@@ -1,8 +1,8 @@
 use crate::core::*;
 
-use term_basics_linux::UC;
-
 use std::collections::HashMap;
+
+use zen_colour::*;
 
 pub struct SummaryData<'a>{
     pub namebank: &'a NameBank,
@@ -43,8 +43,7 @@ pub fn summary(d: &SummaryData) -> f32{
     let assets_total_holdings_error = assets - (total_holdings_worth * assets_split);
     let assets_error = assets_pos_sum_error.max(assets_total_holdings_error);
 
-    let (textc, infoc, namec, posc, negc, fracc)
-        = (UC::Std, UC::Magenta, UC::Blue, UC::Green, UC::Red, UC::Yellow);
+    let (textc, infoc, namec, posc, negc, fracc) = (DEFAULT, MAGENTA, BLUE, GREEN, RED, YELLOW);
     let pncol = |v: f32| if v < 0.0 { negc } else { posc };
     let roicol = |v: f32| if v < 1.0 { negc } else { posc };
 

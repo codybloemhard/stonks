@@ -11,6 +11,7 @@ readme = "README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-term-basics-linux = "0.5.7"
+term-basics-linux = "1.0.0"
+zen-colour = "1.1.1"
 lapp = "0.4.0"
 meval = "0.2.0"
