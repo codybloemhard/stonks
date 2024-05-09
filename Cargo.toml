@@ -1,8 +1,8 @@
 [package]
 name = "stonks"
-version = "2.0.0"
+version = "2.1.0"
 authors = ["Cody Bloemhard <codybloemhard@gmail.com>"]
-edition = "2018"
+edition = "2021"
 license = "GPL-3.0-only"
 description = "Small tool to track personal finance, transactional database like style."
 repository = "https://gitlab.com/codybloemhard/stonks"
@@ -14,4 +14,4 @@ readme = "README.md"
 term-basics-linux = "1.0.0"
 zen-colour = "1.1.1"
 lapp = "0.4.0"
-meval = "0.2.0"
+meval = "0.2.0" # needs 'nom' dependency to be updated

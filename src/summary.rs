@@ -43,7 +43,8 @@ pub fn summary(d: &SummaryData) -> f32{
     let assets_total_holdings_error = assets - (total_holdings_worth * assets_split);
     let assets_error = assets_pos_sum_error.max(assets_total_holdings_error);
 
-    let (textc, infoc, namec, posc, negc, fracc) = (DEFAULT, MAGENTA, BLUE, GREEN, RED, YELLOW);
+    let (textc, infoc, namec, posc, negc, fracc, b, r) =
+        (DEFAULT, MAGENTA, BLUE, GREEN, RED, YELLOW, BOLD, RESET);
     let pncol = |v: f32| if v < 0.0 { negc } else { posc };
     let roicol = |v: f32| if v < 1.0 { negc } else { posc };
 
@@ -53,36 +54,36 @@ pub fn summary(d: &SummaryData) -> f32{
         _ => |v: f32| (v * 100.0).round() / 100.0,
     };
 
-    println!("{}General:", infoc);
-    println!("{}Net: {}{}{}.", textc, pncol(net), val(net / norm_fac), textc);
-    println!("{}Debt: {}{}{}.", textc, pncol(debt), val(debt / norm_fac), textc);
-    println!("{}Yield: {}{}{}.", textc, pncol(r#yield), val(r#yield / norm_fac), textc);
-    println!("{}ROI: {}{}{}.", textc, roicol(roi), roi, textc);
-    println!("{}Assets: {}{}{}.", textc, pncol(assets), val(assets / norm_fac), textc);
-    println!("{}Fiat: {}{}{}.", textc, pncol(fiat), val(fiat / norm_fac), textc);
-    println!("{}Positive owned sum: {}{}", textc, posc, val(if d.redact { 1.0 } else { pos_sum }));
-    println!("{}Total holdings worth: {}{}",
+    println!("{}{b}General{r}:", infoc);
+    println!("  {}Net: {}{}{}", textc, pncol(net), val(net / norm_fac), textc);
+    println!("  {}Debt: {}{}{}", textc, pncol(debt), val(debt / norm_fac), textc);
+    println!("  {}Yield: {}{}{}", textc, pncol(r#yield), val(r#yield / norm_fac), textc);
+    println!("  {}ROI: {}{}{}", textc, roicol(roi), roi, textc);
+    println!("  {}Assets: {}{}{}", textc, pncol(assets), val(assets / norm_fac), textc);
+    println!("  {}Fiat: {}{}{}", textc, pncol(fiat), val(fiat / norm_fac), textc);
+    println!("  {}Positive owned sum: {}{}", textc, posc, val(if d.redact { 1.0 } else { pos_sum }));
+    println!("  {}Total holdings worth: {}{}",
         textc, posc, val(total_holdings_worth / norm_fac)
     );
-    println!("{}Positive owned sum / holdings error: {}{}{} which is {}{}{}%.",
+    println!("  {}Positive owned sum / holdings error: {}{}{} which is {}{}{}%",
         textc, pncol(sum_holding_error), sum_holding_error / norm_fac, textc,
         posc, sum_holding_error.abs() / min_sum * 100.0, textc
     );
-    println!("{}Assets / (positive sum, holdings) error: {}{}{} which is {}{}{}%.",
+    println!("  {}Assets / (positive sum, holdings) error: {}{}{} which is {}{}{}%",
         textc, pncol(assets_error), assets_error / norm_fac, textc, posc,
         assets_error.abs() / min_sum * 100.0, textc
     );
-    println!("{}You spent {}{}{} the past year.",
+    println!("  {}You spent {}{}{} the past year",
         textc, pncol(spend_past_12m), val(spend_past_12m / norm_fac), textc
     );
-    println!("{}You received {}{}{} the past year.",
+    println!("  {}You received {}{}{} the past year",
         textc, pncol(receive_past_12m), val(receive_past_12m / norm_fac), textc
     );
-    println!("{}Your saving rate is {}{}{}% the past year.",
+    println!("  {}Your saving rate is {}{}{}% the past year",
         textc, pncol(saving_rate_past_12m), val(saving_rate_past_12m), textc
     );
 
-    println!("{}Accounts:", infoc);
+    println!("{b}{}Accounts{r}:", infoc);
     let mut to_print = Vec::new();
     let include_not_everything = !d.includes.is_empty();
     for (name, amount, _) in &accounts{
@@ -100,14 +101,14 @@ pub fn summary(d: &SummaryData) -> f32{
         to_print.sort_by(|(_, _, i), (_, _, j)| i.cmp(j));
     }
     for (name, aval, _) in to_print{
-        println!("{}{}: {}{}", namec, name, pncol(aval), val(aval));
+        println!("  {}{}: {}{}", namec, name, pncol(aval), val(aval));
     }
 
-    println!("{}Distribution:", infoc);
-    println!("{t}With a split of {f}{a}{t}% assets and {f}{b}{t}% fiat",
+    println!("{b}{}Distribution{r}:", infoc);
+    println!("  {t}With a split of {f}{a}{t}% assets and {f}{b}{t}% fiat",
         t = textc, f = fracc, a = val(assets_split * 100.0), b = val(fiat_split * 100.0)
     );
-    println!("{t}A total of {c}{f}{t} fiat is stuck in the shadowrealm",
+    println!("  {t}A total of {c}{f}{t} fiat is stuck in the shadowrealm",
         t = textc, c = pncol(shadowrealm_fiat), f = shadowrealm_fiat / norm_fac
     );
 
@@ -124,24 +125,24 @@ pub fn summary(d: &SummaryData) -> f32{
     );
     for (name, amount, worth, price, share) in data_rows{
         if !d.redact{
-            println!("{nc}{name}{tc}: {ac}{amount}{tc} worth {wc}{worth}{tc} priced {pc}{price}{tc} at {sc}{share}{tc}% of total",
+            println!("  {nc}{name}{tc}: {ac}{amount}{tc} worth {wc}{worth}{tc} priced {pc}{price}{tc} at {sc}{share}{tc}% of total",
                 tc = textc, nc = namec, name = name, ac = pncol(*amount), amount = val(*amount),
                 wc = pncol(worth), worth = val(worth), pc = pncol(*price), price = val(*price),
                 sc = fracc, share = val(share * 100.0)
             );
         } else {
-            println!("{nc}{name}{tc} at {sc}{share}{tc}% of total",
+            println!("  {nc}{name}{tc} at {sc}{share}{tc}% of total",
                 tc = textc, nc = namec, name = name, sc = fracc, share = val(share * 100.0));
         }
     }
 
-    println!("{}Metrics:", infoc);
+    println!("{b}{}Metrics{r}:", infoc);
     let time_flat = net / spend_past_12m * 12.0;
     let moy = |x: f32| if x.abs() > 24.0 { x / 12.0 } else { x }; // months or years
     let moy_label = |x: f32| if x.abs() > 24.0 { "years" } else { "months" };
-    println!("{}Your net worth is {}{}{} {} (no Inflation and ROI)",
+    println!("  {}Your net worth is {}{}{} {} (no Inflation and ROI)",
         textc, pncol(time_flat), val(moy(time_flat)), textc, moy_label(time_flat));
-    println!("{}A {}2{}% yield would give you {}{}{}% of your spending.",
+    println!("  {}A {}2{}% yield would give you {}{}{}% of your spending.",
         textc, posc, textc, posc, val((min_sum * 0.02) / spend_past_12m * 100.0), textc);
 
     let print_time_exp = |inflation_rate: f32, roi_rate: f32|{
@@ -155,7 +156,7 @@ pub fn summary(d: &SummaryData) -> f32{
         let mut months = 0.0;
         loop{
             if months >= 1200.0{
-                println!("{}Your assets are worth {}100+{} years ({}% Infl., {}% ROI)",
+                println!("  {}Your assets are worth {}100+{} years ({}% Infl., {}% ROI)",
                     textc, posc, textc, inflation_rate, roi_rate
                 );
                 return;
@@ -170,7 +171,7 @@ pub fn summary(d: &SummaryData) -> f32{
                 total += assets;
             } else {
                 months += total / month_cost;
-                println!("{}Your assets are worth {}{}{} {} ({}{}{}% Infl., {}{}{}% ROI)",
+                println!("  {}Your assets are worth {}{}{} {} ({}{}{}% Infl., {}{}{}% ROI)",
                     textc, pncol(months), val(moy(months)), textc, moy_label(months), infc,
                     inflation_rate, textc, roic, roi_rate, textc
                 );
