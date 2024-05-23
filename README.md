@@ -91,7 +91,7 @@ Personal finance tool using a transactional database approach
 ## License
 
 ```
-Copyright (C) 2022 Cody Bloemhard
+Copyright (C) 2024 Cody Bloemhard
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
