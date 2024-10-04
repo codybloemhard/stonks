@@ -45,15 +45,23 @@ fn main() {
 
     let mut namebank = NameBank::new();
     let mut date = Date::default();
-    let ts_res = contents.split('\n').map(|line| line.to_string()
-        .into_trans(&mut namebank, &mut date)).enumerate().collect::<Vec<_>>();
+    let mut prev_date_sum = 0;
     let mut ts = Vec::new();
     let mut errs = Vec::new();
-    for (line, tr) in ts_res{
-        match tr {
-            Some(Err(e)) => errs.push((line + 1, e)), // lines start at 1, indices at 0
-            Some(Ok(t)) => ts.push(t),
-            _ => {},
+    for (ln, line) in contents.split('\n').enumerate() {
+        let parse_res = line.to_string().into_trans(&mut namebank, &mut date);
+        match parse_res {
+            Some(Err(e)) => errs.push((ln + 1, e)), // lines start at 1, indices at 0
+            Some(Ok(t)) => {
+                let date_sum =
+                    (date.0 as usize) + (date.1 as usize) * 100 + (date.2 as usize) * 10000;
+                if date_sum < prev_date_sum {
+                    errs.push((ln + 1, TransErr::OrderError(date)));
+                }
+                prev_date_sum = date_sum;
+                ts.push(t);
+            },
+            _ => {  },
         }
     }
     if !errs.is_empty(){

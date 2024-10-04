@@ -72,7 +72,7 @@ pub fn hist(state: &mut State, ts: &[Trans]) -> (Vec<Vec<f32>>, MonthDate){
 pub fn update(ts: &[Trans], state: &mut State, from: Option<usize>, from_date: Option<MonthDate>)
     -> (usize, MonthDate)
 {
-    let skip = if let Some(skip) = from { skip } else { 0 };
+    let skip = from.unwrap_or(0);
     let all = from.is_none();
     let mut date = from_date.unwrap_or((0, 0));
     let mut spending_acc = 0.0;
@@ -427,6 +427,7 @@ pub enum TransErr {
     NotEnoughFields(String),
     ParseError(String, String),
     FloatError(String, String, String),
+    OrderError(Date),
 }
 
 impl std::fmt::Display for TransErr{
@@ -446,6 +447,10 @@ impl std::fmt::Display for TransErr{
                 => write!(f, "Could not parse '{}' in field '{}'", wrong, field),
             TransErr::FloatError(field, wrong, error)
                 => write!(f, "Could not parse '{}' in float '{}': {}", wrong, field, error),
+            TransErr::OrderError(date)
+                => write!(
+                    f, "Illegal order: transaction goes back in time to date: {:?}", date
+                ),
         }
     }
 }

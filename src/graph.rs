@@ -47,8 +47,11 @@ pub fn get_graph_colours(args: &lapp::Args) -> Vec<String>{
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn graph(norm_fac: f32, nb: &NameBank, ts: &[Trans], include: &[&str], redact_map: &HashMap<String, String>,
-            colours: Vec<String>, browser: &str, year_digits: u16, use_month_names: bool){
+pub fn graph(
+    norm_fac: f32, nb: &NameBank, ts: &[Trans], include: &[&str],
+    redact_map: &HashMap<String, String>, colours: Vec<String>,
+    browser: &str, year_digits: u16, use_month_names: bool)
+{
     let mut state = State::new(nb);
     let (hist, start_date) = hist(&mut state, ts);
     let mut page = String::new();
