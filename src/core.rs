@@ -97,10 +97,7 @@ pub fn update(ts: &[Trans], state: &mut State, from: Option<usize>, from_date: O
                     state.accounts[NET] += diff;
                     if state.account_labels[dst] == AccountLabel::Assets{
                         state.accounts[YIELD] += diff;
-                        let old = state.accounts[ASSETS];
                         state.accounts[ASSETS] += diff;
-                        let roi = state.accounts[ASSETS] / old;
-                        state.accounts[ROI] *= roi;
                     }
                 }
                 if state.account_labels[dst] == AccountLabel::Fiat{

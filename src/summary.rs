@@ -27,9 +27,9 @@ pub fn summary(d: &SummaryData) -> f32{
     let min_sum = pos_sum.min(total_holdings_worth);
     let norm_fac = if d.redact { min_sum } else { 1.0 };
     let net = accounts[NET].1;
-    let debt = net - min_sum;
+    let debt = net - pos_sum;
     let r#yield = accounts[YIELD].1;
-    let roi = accounts[ROI].1;
+    // let roi = accounts[ROI].1;
     let assets = accounts[ASSETS].1;
     let sum_holding_error = pos_sum - total_holdings_worth;
     let fiat = amounts[0].1;
@@ -46,7 +46,7 @@ pub fn summary(d: &SummaryData) -> f32{
     let (textc, infoc, namec, posc, negc, fracc, b, r) =
         (DEFAULT, MAGENTA, BLUE, GREEN, RED, YELLOW, BOLD, RESET);
     let pncol = |v: f32| if v < 0.0 { negc } else { posc };
-    let roicol = |v: f32| if v < 1.0 { negc } else { posc };
+    // let roicol = |v: f32| if v < 1.0 { negc } else { posc };
 
     let val = match d.rounding {
         "none" => |v: f32| v,
@@ -58,7 +58,6 @@ pub fn summary(d: &SummaryData) -> f32{
     println!("  {}Net: {}{}{}", textc, pncol(net), val(net / norm_fac), textc);
     println!("  {}Debt: {}{}{}", textc, pncol(debt), val(debt / norm_fac), textc);
     println!("  {}Yield: {}{}{}", textc, pncol(r#yield), val(r#yield / norm_fac), textc);
-    println!("  {}ROI: {}{}{}", textc, roicol(roi), roi, textc);
     println!("  {}Assets: {}{}{}", textc, pncol(assets), val(assets / norm_fac), textc);
     println!("  {}Fiat: {}{}{}", textc, pncol(fiat), val(fiat / norm_fac), textc);
     println!("  {}Positive owned sum: {}{}", textc, posc, val(if d.redact { 1.0 } else { pos_sum }));
