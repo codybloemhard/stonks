@@ -479,7 +479,7 @@ impl IntoTrans for String{
 
         macro_rules! parse_float{
             ($string:expr, $field:expr) => {
-                match meval::eval_str($string){
+                match fasteval::ez_eval($string, &mut fasteval::EmptyNamespace) {
                     Ok(ans) => ans as f32,
                     Err(err) => return Some(Err(TransErr::FloatError(
                         $field.to_string(),

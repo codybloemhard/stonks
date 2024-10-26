@@ -1,6 +1,6 @@
 [package]
 name = "stonks"
-version = "2.2.0"
+version = "2.2.1"
 authors = ["Cody Bloemhard <codybloemhard@gmail.com>"]
 edition = "2021"
 license = "GPL-3.0-only"
@@ -13,4 +13,4 @@ readme = "README.md"
 term-basics-linux = "1.0.0"
 zen-colour = "1.1.1"
 lapp = "0.4.0"
-meval = "0.2.0" # needs 'nom' dependency to be updated
+fasteval = "0.2.4"

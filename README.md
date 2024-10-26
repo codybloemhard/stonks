@@ -2,7 +2,11 @@
 
 Small tool to track personal finance.
 Write important events in a transactional-database-ish like plain text file (see `sample.csv`).
-All account value related values are meant to be written down in one currency.
+This method of keeping up with your finances is called "plain text accounting" (or "PTA").
+I did not know this when starting this project and have thus reinvented the wheel a bit.
+Other tools are already available (see: https://plaintextaccounting.org/).
+You should probably use them over this (they are already tested in real world applications by many).
+I do however keep this alive as I already use it myself.
 
 Meant to track:
 - Worth of accounts, not distribution of assets within accounts.
@@ -20,8 +24,9 @@ Produces:
 To model debt have an account marked as debt and send a positive value to standard build in account `null`.
 `null` is not counted as 'yours' and won't show up in networth.
 All other accounts are taken to contribute to your worth.
+All account value related values are meant to be written down in one currency.
 Don't use accounts starting with `_`.
-Special accounts start with `_` and track some statistics: `_flow`, `_internal_flow`, `net`, `net_lost`, `net_gained`, `_tra`, `_tra_lost`, `tra_gained`, `_yield`, `_yield_lost`, `_yield_gained`, `_spending_month`, `_spending_cumulative`, `receiving_month`, `receiving_cumulative`.
+Special accounts start with `_` and track some statistics: `_flow`, `_internal_flow`, `_net`, `_assets`, `_tra`, `_yield`, `_roi`, `_spending_month`, `_spending_cumulative`, `_receiving_month`, `_receiving_cumulative`.
 
 ### commands
 
@@ -34,6 +39,9 @@ Special accounts start with `_` and track some statistics: `_flow`, `_internal_f
 - `ass`: mark account as asset holder
   - ass,account,tags
   - ass,broker-account
+- `stat`: mark account as a statistic (won't show up in net worth etc)
+  - stat,account,tags
+  - stat,dividends-received
 - `mov`: move fiat between accounts
   - mov,date,src,dst,amount,tags
   - mov,01/01/2021,payment,saving,100
@@ -76,7 +84,7 @@ Meaning if you give less than 7 of them some of Nord will still be in there.
  stonks --help
 Personal finance tool using a transactional database approach
 -r, --redact redact absolute valuations
--g, --graph draw draw
+-g, --graph draw graph
 -p, --palette (default '') file to read colours from
 -c, --colours (integer...) lines to get colours from (bg, fg, col0, col1, ...)
 -b, --browser (default firefox) browser to show graph in
@@ -85,6 +93,8 @@ Personal finance tool using a transactional database approach
 --redact-map (string...) accounts and their redacted name eg. RealName:Stocks0
 --date-year-digits (default 4) how many digits to display a date's year with: [0,1,2,3,4]
 --date-month-digit use a digit instead of a 3 letter name for a date's month
+--value-rounding (default '') whole to round to integers, none to never round
+--min-asset-worth (default 1.0) don't list assets worth less
 <file> (string) transactional "database" file
 ```
 
